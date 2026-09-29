@@ -10,7 +10,7 @@
   "orientation": "landscape-primary",
   "icons": [
     {
-      "src": "/images/mori-mascot.png",
+      "src": "/images/ginseng-mascot.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

@@ -165,7 +165,7 @@ function formatSavedStoryDate(value: string) {
 function mascotGuideForStep(step: Step, characterName: string) {
   switch (step) {
     case "character":
-      return "1단계: 주인공을 골라주세요.";
+      return "안녕! 나는 금산 인삼 요정 삼이야. 1단계: 주인공을 골라주세요.";
     case "trait":
       return `2단계: ${characterName}의 성격을 선택해주세요.`;
     case "place":
@@ -173,7 +173,7 @@ function mascotGuideForStep(step: Step, characterName: string) {
     case "events":
       return "4단계: 기승전결 사건을 차례대로 선택해주세요.";
     case "loading":
-      return "멋진 동화를 만들고 있어요. 잠시만 기다려주세요.";
+      return "삼이가 멋진 동화를 만들고 있어요. 잠시만 기다려주세요.";
     case "result":
       return "";
     default:
@@ -348,7 +348,7 @@ function KioskArtwork({
       {guideText ? (
         <div className="absolute bottom-16 left-7 flex max-w-[calc(100%-56px)] items-end gap-3">
           <img
-            src="/images/mori-mascot-transparent.png"
+            src="/images/ginseng-mascot-transparent.png"
             alt=""
             aria-hidden="true"
             className="story-mascot-float h-28 w-28 shrink-0 object-contain drop-shadow-[0_18px_24px_rgba(0,0,0,0.3)] sm:h-32 sm:w-32"
@@ -1200,7 +1200,7 @@ export function StoryKioskApp() {
           <header className="z-10 mx-auto flex w-full max-w-[1560px] flex-wrap items-center justify-between gap-3 pb-2">
             <div className="flex items-center gap-4">
               <img
-                src="/images/mori-mascot-transparent.png"
+                src="/images/ginseng-mascot-transparent.png"
                 alt=""
                 aria-hidden="true"
                 className="h-16 w-16 shrink-0 object-contain drop-shadow-[0_8px_14px_rgba(0,0,0,0.28)]"
@@ -1319,7 +1319,7 @@ export function StoryKioskApp() {
                 <span aria-hidden="true" className="story-mascot-float relative mt-1 block h-[clamp(120px,14vw,178px)] w-[clamp(120px,14vw,178px)]">
                   <span className="absolute inset-x-[18%] bottom-1 h-8 rounded-full bg-[#050914]/55 blur-xl" />
                   <img
-                    src="/images/mori-mascot-transparent.png"
+                    src="/images/ginseng-mascot-transparent.png"
                     alt=""
                     className="relative h-full w-full object-contain drop-shadow-[0_24px_34px_rgba(0,0,0,0.36)]"
                     draggable={false}

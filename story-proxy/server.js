@@ -426,7 +426,7 @@ function buildImagePrompt(selection, scene, pageIndex) {
     "Outfit lock: the protagonist wears the exact same outfit with the same colors on every page — the same top, same bottoms, same shoes, and same accessories. Never change, recolor, or restyle the clothing between pages.",
     "Anatomy must be correct and natural: the protagonist has exactly one head, two arms, and two hands with five fingers each, and two legs. Never draw extra, duplicated, or floating hands, arms, fingers, or limbs; no deformed or merged fingers.",
     "Supporting characters may appear only when needed by the story, but keep them small and secondary. They must not distract from, replace, duplicate, or be confused with the protagonist.",
-    "Do not include Mori, the app guide mascot, logos, watermark, text labels, captions, or any extra sticker-like overlay inside the generated illustration.",
+    "Do not include Sami, the app guide mascot (a cute ginseng-root sprite with leaves and red berries on its head), logos, watermark, text labels, captions, or any extra sticker-like overlay inside the generated illustration.",
     `Setting bible: ${settingBible[placeKey] || settingBible.village}. Keep the same world design, palette, lighting mood, and material style across pages.`,
     "Use a consistent square storybook composition: protagonist clearly visible in the foreground or middle ground, clear foreground action, soft background depth, no extreme camera angle changes, no cropping that makes the character unrecognizable.",
     `This is page ${pageNum} of a 6-page continuous story; this page should ${flowRoleEn}. Illustrate the specific moment described below with its own distinct action, pose, expression, composition, and background detail.`,

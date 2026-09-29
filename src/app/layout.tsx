@@ -11,8 +11,8 @@ export const metadata: Metadata = {
   keywords: ["모산초등학교", "AI 동화", "PWA", "동화 만들기", "수업 앱"],
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/images/mori-mascot.png",
-    apple: "/images/mori-mascot.png"
+    icon: "/images/ginseng-mascot.png",
+    apple: "/images/ginseng-mascot.png"
   },
   appleWebApp: {
     capable: true,
