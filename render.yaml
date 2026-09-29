@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: mosan-story-proxy
+    runtime: node
+    rootDir: story-proxy
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: PROVIDER
+        value: gemini
+      - key: MAX_PER_MIN
+        value: "20"
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: GEMINI_IMAGE_MODEL
+        value: gemini-2.5-flash-image
+      - key: GEMINI_VIDEO_MODEL
+        value: veo-3.1-fast-generate-preview
+      - key: GEMINI_THINKING_BUDGET
+        value: "0"
+      # 비밀값은 저장소에 두지 않는다. Render 대시보드에서 직접 입력한다.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEYS
+        sync: false
+      # 관리자 계정. ADMIN_PASSWORD_HASH는 비밀번호의 sha256 hex 값이다.
+      # 둘 중 하나라도 없으면 로그인이 전부 막힌다(fail-closed).
+      - key: ADMIN_ID
+        sync: false
+      - key: ADMIN_PASSWORD_HASH
+        sync: false

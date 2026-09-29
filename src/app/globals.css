@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  background: #f7f8fa;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  overflow: hidden;
+  scroll-behavior: smooth;
+  /* 디바이스 화면 너비에 따라 루트 글꼴 크기를 유동 조정.
+     Tailwind의 글자(text-)와 여백(p-, gap-)은 rem 기반이라 글씨와 레이아웃이 비율 그대로 스케일됨.
+     데스크톱(약 1440~1600px)에서 16px을 유지하고, 폰/태블릿은 더 작게, 초대형 화면은 살짝 크게. */
+  font-size: clamp(13.5px, calc(12.6px + 0.22vw), 17px);
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  color: #111827;
+  background: #f7f8fa;
+  font-family: Pretendard, SUIT, Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: #f3c33a;
+  color: #031225;
+}
+
+@keyframes pageIn {
+  from {
+    opacity: 0.2;
+    transform: rotateY(8deg) translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: rotateY(0deg) translateY(0);
+  }
+}
+
+@keyframes storyMascotFloat {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg) scale(1);
+  }
+
+  35% {
+    transform: translateY(-18px) rotate(2.5deg) scale(1.035);
+  }
+
+  65% {
+    transform: translateY(-8px) rotate(-1deg) scale(0.995);
+  }
+}
+
+.story-mascot-float {
+  animation: storyMascotFloat 2.8s ease-in-out infinite;
+  transform-origin: 50% 80%;
+  will-change: transform;
+}
+
+.section-wrap {
+  width: min(100% - 40px, 1180px);
+  margin-inline: auto;
+}
+
+.section-padding {
+  padding-block: 140px;
+}
+
+@media (max-width: 1199px) {
+  .section-padding {
+    padding-block: 100px;
+  }
+}
+
+@media (max-width: 767px) {
+  .section-wrap {
+    width: min(100% - 32px, 1180px);
+  }
+
+  .section-padding {
+    padding-block: 72px;
+  }
+}
