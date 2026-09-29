@@ -133,12 +133,20 @@ function isRateLimited(ip) {
   return bucket.count > maxPerMinute;
 }
 
+// 브라우저에서 온 짧은 설명 문자열을 프롬프트에 넣기 전에 정리한다(줄바꿈·백틱 제거, 길이 제한).
+function cleanPromptText(value, maxLength) {
+  return String(value || "").replace(/[\r\n`]+/g, " ").trim().slice(0, maxLength);
+}
+
+const heroTypeWords = { man: "남성", woman: "여성", boy: "남자 어린이", girl: "여자 어린이", robot: "로봇" };
+
 function buildPrompt(selection, grade) {
   const events = selection.events || {};
   const isUpper = grade === "5-6";
   const gradeLabel = isUpper ? "5~6" : "3~4";
   const g = selection.character?.gender;
-  const genderWord = g === "boy" ? "소년" : g === "girl" ? "소녀" : g === "robot" ? "로봇" : "";
+  // 예: "여성, 노년(70살 이상) 할머니". 나이대 정보가 없으면 유형만 쓴다.
+  const genderWord = cleanPromptText(selection.character?.heroLabel, 60) || heroTypeWords[g] || "";
   const genderPart = genderWord ? ` (${genderWord})` : "";
   const name = selection.character?.name || "주인공";
   const trait = selection.trait?.label || "다정한";
@@ -158,7 +166,7 @@ function buildPrompt(selection, grade) {
 반드시 지킬 고정값(절대 바꾸지 않는다):
 - 주인공의 이름은 반드시 '${name}'(으)로 한다. 다른 이름으로 바꾸거나 새로 지어내지 않는다.
 - 배경(장소)은 반드시 '${placeName}'(으)로 한다. 아래 규칙의 예시에 다른 장소가 나와도 그것으로 바꾸지 않는다.
-${genderWord ? `- 주인공의 성별은 '${genderWord}'로 한다.\n` : ""}${!isUpper ? "- 초등 3~4학년용이므로 각 쪽은 반드시 1~2개의 짧은 문장, 한 쪽당 40~70자 이내로 짧게 쓴다. 절대 길게 늘여 쓰지 않는다.\n" : ""}
+${genderWord ? `- 주인공은 '${genderWord}'이다. 성별과 나이대를 바꾸지 않고, 그 나이에 어울리는 말투와 행동으로 쓴다.\n` : ""}${!isUpper ? "- 초등 3~4학년용이므로 각 쪽은 반드시 1~2개의 짧은 문장, 한 쪽당 40~70자 이내로 짧게 쓴다. 절대 길게 늘여 쓰지 않는다.\n" : ""}
 중요 소재 반영 규칙:
 - 2쪽 발단에는 반드시 '${opening}'의 핵심 소재가 보여야 한다.
 - 3쪽 전개에는 반드시 '${development}'의 핵심 행동이 이어져야 한다.
@@ -356,7 +364,8 @@ function buildImagePrompt(selection, scene, pageIndex) {
   const place = selection.place?.name || "환상적인 마을";
   const characterId = selection.character?.id || "hero";
   const gender = selection.character?.gender;
-  const isCustom = gender === "boy" || gender === "girl" || gender === "robot";
+  const isCustom = gender in heroTypeWords;
+  const ageDesc = cleanPromptText(selection.character?.ageDesc, 160);
   const hair = String(selection.character?.hair || "").trim();
   const features = Array.isArray(selection.character?.features)
     ? selection.character.features.filter(Boolean)
@@ -381,13 +390,13 @@ function buildImagePrompt(selection, scene, pageIndex) {
     oeam: "Oeam Folk Village in Asan, traditional Korean hanok houses, stone walls, old village paths, gentle rural heritage atmosphere"
   };
 
-  // 이름·유형(소년/소녀/로봇)·머리색·특징으로 주인공 외형을 구성한다.
+  // 이름·유형(남성/여성/남자 어린이/여자 어린이/로봇)·나이대·머리색·특징으로 주인공 외형을 구성한다.
   let characterBible;
   let speciesNote;
   let consistencyLine;
   if (gender === "robot") {
     const bodyColor = hair ? hair.replace(/\s*hair$/, "") : "silver";
-    characterBible = `a friendly small rounded child-sized robot with smooth ${bodyColor}-colored body panels, glowing round eyes, a gentle cheerful expression${featureText}`;
+    characterBible = `a friendly rounded robot, ${ageDesc || "a child-sized small robot"}, with smooth ${bodyColor}-colored body panels, glowing round eyes, a gentle cheerful expression${featureText}`;
     speciesNote = ", a friendly cute robot (not an animal, not a human child)";
     consistencyLine = "Do not redesign the protagonist between pages. Always draw the protagonist as the same robot; never turn it into an animal or a human.";
   } else if (gender === "boy" || gender === "girl") {
@@ -396,9 +405,17 @@ function buildImagePrompt(selection, scene, pageIndex) {
     const outfit = gender === "boy"
       ? "wearing a light blue hooded top, navy-blue jeans, and white sneakers"
       : "wearing a coral-pink long-sleeve shirt, light-blue jeans, and white sneakers";
-    characterBible = `a friendly Korean ${who} child around 9-11 years old with ${hair || "black hair"}, bright round eyes, rosy cheeks, ${outfit}${featureText}`;
+    characterBible = `a friendly Korean ${who} child, ${ageDesc || "around 9-11 years old"}, with ${hair || "black hair"}, bright round eyes, rosy cheeks, ${outfit}${featureText}`;
     speciesNote = ", a real human child (not an animal, not a robot, not a mascot)";
-    consistencyLine = "Do not redesign the protagonist between pages. Always draw the protagonist as the same human child; never turn them into an animal, a robot, or a mascot.";
+    consistencyLine = "Do not redesign the protagonist between pages. Always draw the protagonist as the same human child at the same age; never turn them into an animal, a robot, or a mascot.";
+  } else if (gender === "man" || gender === "woman") {
+    const who = gender === "man" ? "man" : "woman";
+    const outfit = gender === "man"
+      ? "wearing a navy-blue casual jacket over a white shirt, beige trousers, and brown walking shoes"
+      : "wearing a mustard-yellow cardigan over a white blouse, navy-blue trousers, and brown walking shoes";
+    characterBible = `a friendly Korean ${who}, ${ageDesc || "an adult in their thirties or forties"}, with ${hair || "black hair"}, warm kind eyes, a gentle smile, ${outfit}${featureText}`;
+    speciesNote = ", a real human adult (not a child, not an animal, not a robot, not a mascot)";
+    consistencyLine = "Do not redesign the protagonist between pages. Always draw the protagonist as the same adult person at the same age; never make them younger or older, and never turn them into a child, an animal, a robot, or a mascot.";
   } else {
     characterBible = palette[characterId] || palette.kong;
     speciesNote = "";

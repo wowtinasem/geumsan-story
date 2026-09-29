@@ -1,5 +1,6 @@
 "use client";
 
+import { defaultHeroAgeId, getHeroAge, heroAgeOptions, heroStoryLabel, heroTypes, type HeroType } from "./heroOptions";
 import {
   ArrowLeftIcon,
   ArrowDownTrayIcon,
@@ -62,11 +63,6 @@ const defaultTrait = traits[0];
 const defaultPlace = places[0];
 
 // 주인공 외형 옵션 (label=화면 표시 한글, desc=이미지 프롬프트용 영어, swatch=머리색 미리보기)
-const heroTypes: { id: "girl" | "boy" | "robot"; label: string }[] = [
-  { id: "girl", label: "소녀" },
-  { id: "boy", label: "소년" },
-  { id: "robot", label: "로봇" }
-];
 const hairColors: { id: string; label: string; desc: string; swatch: string }[] = [
   { id: "black", label: "검정", desc: "black hair", swatch: "#222530" },
   { id: "brown", label: "갈색", desc: "brown hair", swatch: "#7B4A26" },
@@ -187,13 +183,25 @@ function buildSelection(
   place: PlaceChoice,
   events: StorySelection["events"],
   heroName = "",
-  gender: "boy" | "girl" | "robot" = "girl",
+  gender: HeroType = "girl",
   hair = "",
-  features: string[] = []
+  features: string[] = [],
+  ageId?: string
 ): StorySelection {
   const name = heroName.trim() || "주인공";
+  const age = getHeroAge(gender, ageId);
   return {
-    character: { id: character.id, name, emoji: character.emoji, gender, hair, features },
+    character: {
+      id: character.id,
+      name,
+      emoji: character.emoji,
+      gender,
+      age: age.id,
+      heroLabel: heroStoryLabel(gender, age.id),
+      ageDesc: age.desc,
+      hair,
+      features
+    },
     trait,
     place: { id: place.id, name: place.name, sceneKey: place.sceneKey },
     events
@@ -734,7 +742,8 @@ export function StoryKioskApp() {
   const [classLoginPending, setClassLoginPending] = useState(false);
   const [character, setCharacter] = useState<CharacterChoice>(defaultCharacter);
   const [heroName, setHeroName] = useState("");
-  const [gender, setGender] = useState<"boy" | "girl" | "robot">("girl");
+  const [gender, setGender] = useState<HeroType>("girl");
+  const [heroAgeId, setHeroAgeId] = useState(defaultHeroAgeId.girl);
   const [hairColorId, setHairColorId] = useState(defaultHairColor.id);
   const [featureIds, setFeatureIds] = useState<string[]>([]);
   const [trait, setTrait] = useState<Choice>(defaultTrait);
@@ -788,8 +797,8 @@ export function StoryKioskApp() {
     [featureIds]
   );
   const selection = useMemo(
-    () => buildSelection(character, trait, place, events, heroName, gender, hairDesc, featureDescs),
-    [character, trait, place, events, heroName, gender, hairDesc, featureDescs]
+    () => buildSelection(character, trait, place, events, heroName, gender, hairDesc, featureDescs, heroAgeId),
+    [character, trait, place, events, heroName, gender, hairDesc, featureDescs, heroAgeId]
   );
   const pdfMetadata = useMemo(
     () =>
@@ -799,9 +808,10 @@ export function StoryKioskApp() {
         characterName: heroName.trim() || "주인공",
         place: place.name,
         gender,
+        age: heroAgeId,
         createdAt: new Date()
       }),
-    [heroName, place.name, gender]
+    [heroName, place.name, gender, heroAgeId]
   );
   const currentStepIndex = stepOrder.indexOf(step);
   const currentSceneImage = step === "result" ? sceneImages[pageIndex] || fallbackSceneImage(sceneImages, pageIndex) : undefined;
@@ -1377,9 +1387,9 @@ export function StoryKioskApp() {
                 ) : null}
               </div>
 
-              <div className="flex min-h-0 flex-col justify-start overflow-hidden rounded-[30px] border-2 border-[#244DFF]/75 bg-[#101A38]/78 p-4 shadow-[0_0_34px_rgba(36,77,255,0.26)] backdrop-blur lg:p-5">
+              <div className="flex min-h-0 flex-col justify-start overflow-y-auto overflow-x-hidden rounded-[30px] border-2 border-[#244DFF]/75 bg-[#101A38]/78 p-4 shadow-[0_0_34px_rgba(36,77,255,0.26)] backdrop-blur lg:p-5">
                 {step === "character" ? (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div>
                       <p className="text-base font-black text-[#7DFFD4]">1단계</p>
                       <h2 className="text-3xl font-black">주인공을 만들어요</h2>
@@ -1398,20 +1408,47 @@ export function StoryKioskApp() {
 
                     <div className="grid gap-2">
                       <p className="text-sm font-black text-[#FFE9B0]">유형</p>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-5 gap-2">
                         {heroTypes.map((item) => (
                           <button
                             key={item.id}
                             type="button"
-                            onClick={() => setGender(item.id)}
+                            aria-pressed={gender === item.id}
+                            onClick={() => {
+                              if (gender !== item.id) setHeroAgeId(defaultHeroAgeId[item.id]);
+                              setGender(item.id);
+                            }}
                             className={[
-                              "min-h-12 rounded-xl border-2 text-base font-black transition active:scale-[0.98]",
+                              "min-h-12 break-keep rounded-xl border-2 px-1 text-sm font-black leading-tight transition active:scale-[0.98] sm:text-base",
                               gender === item.id
                                 ? "border-[#FFB15D] bg-[#F0633C] text-white"
                                 : "border-[#73DFFF]/25 bg-[#151F41] text-[#D4F5FF]"
                             ].join(" ")}
                           >
                             {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2">
+                      <p className="text-sm font-black text-[#FFE9B0]">나이대</p>
+                      <div className={["grid gap-2", heroAgeOptions[gender].length === 4 ? "grid-cols-4" : "grid-cols-3"].join(" ")}>
+                        {heroAgeOptions[gender].map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            aria-pressed={heroAgeId === item.id}
+                            onClick={() => setHeroAgeId(item.id)}
+                            className={[
+                              "flex min-h-12 flex-col items-center justify-center rounded-xl border-2 px-1 py-1 transition active:scale-[0.98]",
+                              heroAgeId === item.id
+                                ? "border-[#FFB15D] bg-[#F0633C] text-white"
+                                : "border-[#73DFFF]/25 bg-[#151F41] text-[#D4F5FF]"
+                            ].join(" ")}
+                          >
+                            <span className="text-sm font-black leading-tight sm:text-base">{item.label}</span>
+                            <span className="text-[11px] font-bold leading-tight opacity-80">{item.sub}</span>
                           </button>
                         ))}
                       </div>

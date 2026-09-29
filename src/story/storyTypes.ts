@@ -1,3 +1,5 @@
+import type { HeroType } from "./heroOptions";
+
 export type Choice = {
   id: string;
   label: string;
@@ -23,7 +25,11 @@ export type StorySelection = {
     id: string;
     name: string;
     emoji?: string;
-    gender?: "boy" | "girl" | "robot";
+    gender?: HeroType;
+    // 나이대 id와, 프록시 프롬프트용 설명(heroLabel=한국어, ageDesc=영어)
+    age?: string;
+    heroLabel?: string;
+    ageDesc?: string;
     hair?: string;
     features?: string[];
   };
