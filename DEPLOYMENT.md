@@ -1,4 +1,4 @@
-# Mosan Story Deployment
+# Geumsan Story Deployment
 
 This project deploys as two services:
 
@@ -86,10 +86,9 @@ Redeploy or restart the Render proxy after saving this value.
 
 ## 3. Classroom checklist
 
-- Log in with `mosan-001`.
-- Try logging in with `mosan-001` from another browser or tablet and confirm it is blocked.
+- Log in with the admin ID and password.
+- Confirm a wrong password is rejected.
 - Generate one story.
 - Generate representative/print images.
 - Play and stop background music.
 - Save the six-page PDF.
-- Use the teacher reset code before the next class.

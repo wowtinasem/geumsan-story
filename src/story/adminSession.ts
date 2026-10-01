@@ -1,9 +1,9 @@
 // 관리자 1인 전용 로그인. 수업 아이디(M-01~M-99)와 교사 초기화 코드는 폐지됐다.
 // 토큰은 서버(story-proxy)만 발급한다. 브라우저는 발급받은 토큰을 보관만 한다.
-export const adminSessionStorageKey = "mosan-story.adminSession.v2";
+export const adminSessionStorageKey = "geumsan-story.adminSession.v1";
 
-// 학생 태블릿에 남아 있는 예전 수업 세션. 앱을 열 때 지워서 자동 입장을 끊는다.
-const retiredSessionStorageKeys = ["mosan-story.classSession.v1", "mosan-story.classResetCode.v1"];
+// 더 이상 쓰지 않는 세션 저장 키. 키 이름을 바꾸면 예전 키를 여기에 넣어 앱을 열 때 지운다.
+const retiredSessionStorageKeys: string[] = [];
 
 const storyProxyUrl = process.env.NEXT_PUBLIC_STORY_PROXY_URL?.replace(/\/$/, "") || "http://localhost:3001";
 

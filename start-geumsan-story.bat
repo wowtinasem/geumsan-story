@@ -17,13 +17,13 @@ echo [%date% %time%] .next build missing. Running npm run build...>> "%LOG_DIR%\
 call npm.cmd run build
 :after_build
 
-echo [%date% %time%] Starting Buyeo AI Story proxy...>> "%LOG_DIR%\startup.log"
-start "Buyeo Story Proxy" /min /D "%ROOT%story-proxy" node server.js
+echo [%date% %time%] Starting Geumsan AI Story proxy...>> "%LOG_DIR%\startup.log"
+start "Geumsan Story Proxy" /min /D "%ROOT%story-proxy" node server.js
 
 powershell -NoProfile -Command "Start-Sleep -Seconds 3"
 
-echo [%date% %time%] Starting Buyeo AI Story app...>> "%LOG_DIR%\startup.log"
-start "Buyeo Story App" /min /D "%ROOT%" npm.cmd run start -- -H 127.0.0.1 -p 3000
+echo [%date% %time%] Starting Geumsan AI Story app...>> "%LOG_DIR%\startup.log"
+start "Geumsan Story App" /min /D "%ROOT%" npm.cmd run start -- -H 127.0.0.1 -p 3000
 
 powershell -NoProfile -Command "Start-Sleep -Seconds 8"
 

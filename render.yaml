@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: mosan-story-proxy
+    name: geumsan-story-proxy
     runtime: node
     rootDir: story-proxy
     buildCommand: npm ci

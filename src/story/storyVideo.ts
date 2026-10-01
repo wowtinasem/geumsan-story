@@ -206,7 +206,7 @@ function drawCover0(ctx: CanvasRenderingContext2D, title: string, footer: string
 
   ctx.fillStyle = "#FFD073";
   ctx.font = `800 ${Math.round(34 * R)}px Pretendard, sans-serif`;
-  ctx.fillText("모산초등학교 AI동화 수업", W / 2, H / 2 - Math.round(110 * R));
+  ctx.fillText("금산교육지원청 찾아가는 AI동화 수업", W / 2, H / 2 - Math.round(110 * R));
 
   ctx.fillStyle = "#ffffff";
   ctx.font = `900 ${Math.round(56 * R)}px Pretendard, sans-serif`;

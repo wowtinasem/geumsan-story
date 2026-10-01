@@ -1,13 +1,13 @@
-# 부여 AI STORY 로컬 PC 설치 안내
+# 금산 AI 동화 만들기 로컬 PC 설치 안내
 
 ## 1. 설치 위치
 
-AI센터 체험 PC에 이 폴더를 통째로 복사합니다.
+수업용 PC에 이 폴더를 통째로 복사합니다.
 
 권장 위치:
 
 ```text
-C:\BuyeoAIStory
+C:\GeumsanAIStory
 ```
 
 ## 2. API 키 확인
@@ -25,7 +25,7 @@ story-proxy\.env
 관리자 권한이 아니어도 보통 실행 가능합니다.
 
 ```text
-install-buyeo-story.bat
+install-geumsan-story.bat
 ```
 
 설치 과정:
@@ -40,7 +40,7 @@ install-buyeo-story.bat
 수동 실행:
 
 ```text
-start-buyeo-story.bat
+start-geumsan-story.bat
 ```
 
 실행 후 Chrome 키오스크 모드로 아래 주소가 열립니다.
@@ -54,7 +54,7 @@ http://127.0.0.1:3000/story
 서버를 종료하려면:
 
 ```text
-stop-buyeo-story.bat
+stop-geumsan-story.bat
 ```
 
 Chrome 키오스크 창은 `Alt + F4`로 닫을 수 있습니다.
@@ -72,7 +72,7 @@ logs\proxy.log
 
 ## 7. 운영 메모
 
-- 체험 PC 재부팅 시 자동으로 앱과 Chrome 키오스크가 실행됩니다.
-- 설치 후에는 `npm run build`가 완료되어야 `start-buyeo-story.bat`가 정상 실행됩니다.
+- 수업용 PC 재부팅 시 자동으로 앱과 Chrome 키오스크가 실행됩니다.
+- 설치 후에는 `npm run build`가 완료되어야 `start-geumsan-story.bat`가 정상 실행됩니다.
 - 운영 실행은 Vercel과 동일하게 `next start` 방식을 사용합니다.
 - 포트는 기본적으로 `3000`과 `3001`을 사용합니다.

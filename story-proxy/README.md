@@ -1,4 +1,4 @@
-# Buyeo Story Proxy
+# Geumsan Story Proxy
 
 Local Express proxy for the `/story` kiosk app. API keys stay in this server and are never sent to the browser.
 

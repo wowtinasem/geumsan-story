@@ -99,7 +99,7 @@ export function createAdminAccessStore({
     failures.delete(state.key);
     pruneSessions();
 
-    const sessionToken = `mosan-admin-${randomUUID()}`;
+    const sessionToken = `geumsan-admin-${randomUUID()}`;
     sessions.set(sessionToken, { adminId: credentials.adminId, issuedAt: now() });
 
     return {

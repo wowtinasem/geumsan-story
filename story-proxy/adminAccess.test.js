@@ -40,7 +40,7 @@ describe("admin access store", () => {
 
     assert.equal(result.ok, true);
     assert.equal(result.adminId, "admin-for-test");
-    assert.match(result.sessionToken, /^mosan-admin-/);
+    assert.match(result.sessionToken, /^geumsan-admin-/);
     assert.equal(store.verify(result.sessionToken).ok, true);
   });
 
@@ -61,8 +61,8 @@ describe("admin access store", () => {
   it("rejects a client-forged session token", () => {
     const store = createAdminAccessStore({ credentials });
 
-    assert.equal(store.verify("mosan-device-anything").ok, false);
-    assert.equal(store.verify("mosan-admin-forged").reason, "invalid_session");
+    assert.equal(store.verify("geumsan-device-anything").ok, false);
+    assert.equal(store.verify("geumsan-admin-forged").reason, "invalid_session");
   });
 
   it("locks out an IP after repeated failures", () => {

@@ -80,10 +80,10 @@ const heroFeatures: { id: string; label: string; desc: string }[] = [
   { id: "backpack", label: "가방", desc: "a small backpack" }
 ];
 const defaultHairColor = hairColors[0];
-const savedStoriesKey = "buyeo-ai-story.savedStories.v1";
+const savedStoriesKey = "geumsan-ai-story.savedStories.v1";
 const maxSavedStories = 8;
 const blockedCustomWords = ["바보", "죽", "살인", "폭력", "피", "혐오", "욕", "나쁜말"];
-const schoolLabel = "모산초등학교 3~6학년 동화 만들기";
+const schoolLabel = "금산교육지원청 찾아가는 AI동화 수업 · 초등 3~6학년";
 
 function sanitizeCustomChoice(value: string) {
   return value
@@ -679,7 +679,7 @@ async function generateStoryPdf({
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
 
-  const coverHeading = "모산초등학교 AI동화 수업";
+  const coverHeading = "금산교육지원청 찾아가는 AI동화 수업";
   const headingFont = "800 56px Pretendard, sans-serif";
   const titleFont = "900 86px Pretendard, sans-serif";
   const headingH = 66;
@@ -840,7 +840,7 @@ export function StoryKioskApp() {
     () =>
       buildStoryPdfMetadata({
         // PDF 파일 이름 접두사. 관리자 아이디를 파일명에 노출하지 않는다.
-        classId: "mosan",
+        classId: "geumsan",
         characterName: heroName.trim() || "주인공",
         place: place.name,
         gender,

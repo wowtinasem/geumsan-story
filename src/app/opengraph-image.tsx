@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
 
-export const alt = "모산초등학교 AI동화 수업 - AI와 함께 나만의 동화책 만들기";
+export const alt = "금산교육지원청 찾아가는 AI동화 수업 - AI와 함께 나만의 동화책 만들기";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -22,7 +22,7 @@ async function loadKoreanFont(text: string): Promise<ArrayBuffer | null> {
 
 export default async function OpengraphImage() {
   const title = "AI와 함께 나만의 동화책 만들기";
-  const heading = "모산초등학교 AI동화 수업";
+  const heading = "금산교육지원청 찾아가는 AI동화 수업";
   const sub = "초등 3~4 · 5~6학년 · 주인공을 골라 6쪽 동화책을 완성해요";
   const fontData = await loadKoreanFont(`${title}${heading}${sub}0123456789·`);
 
