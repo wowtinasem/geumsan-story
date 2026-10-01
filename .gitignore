@@ -10,3 +10,5 @@ logs
 
 # TypeScript build cache
 *.tsbuildinfo
+
+.vercel
