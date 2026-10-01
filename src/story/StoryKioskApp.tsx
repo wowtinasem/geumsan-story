@@ -93,6 +93,16 @@ function sanitizeCustomChoice(value: string) {
     .slice(0, 24);
 }
 
+const maxFeatureTextLength = 40;
+
+// 특징 직접 쓰기: 입력 중에는 앞뒤 공백을 남겨 둬야 띄어쓰기를 칠 수 있다. 사용할 때 trim 한다.
+function sanitizeFeatureText(value: string) {
+  return value
+    .replace(/[^\u3131-\u318e\uac00-\ud7a3a-zA-Z0-9 .,!?~\-]/g, "")
+    .replace(/\s+/g, " ")
+    .slice(0, maxFeatureTextLength);
+}
+
 function isBlockedCustomChoice(value: string) {
   const normalized = value.replace(/\s+/g, "").toLowerCase();
   return blockedCustomWords.some((word) => normalized.includes(word));
@@ -746,6 +756,8 @@ export function StoryKioskApp() {
   const [heroAgeId, setHeroAgeId] = useState(defaultHeroAgeId.girl);
   const [hairColorId, setHairColorId] = useState(defaultHairColor.id);
   const [featureIds, setFeatureIds] = useState<string[]>([]);
+  const [featureTab, setFeatureTab] = useState<"pick" | "write">("pick");
+  const [featureText, setFeatureText] = useState("");
   const [trait, setTrait] = useState<Choice>(defaultTrait);
   const [place, setPlace] = useState<PlaceChoice>(defaultPlace);
   const [events, setEvents] = useState<StorySelection["events"]>({
@@ -792,10 +804,13 @@ export function StoryKioskApp() {
   const IMAGE_PAGES = [0, 1, 2, 3, 4, 5] as const;
 
   const hairDesc = useMemo(() => hairColors.find((c) => c.id === hairColorId)?.desc || "", [hairColorId]);
-  const featureDescs = useMemo(
-    () => heroFeatures.filter((f) => featureIds.includes(f.id)).map((f) => f.desc),
-    [featureIds]
-  );
+  const featureTextTrimmed = featureText.trim();
+  const featureTextBlocked = featureTextTrimmed ? isBlockedCustomChoice(featureTextTrimmed) : false;
+  const featureDescs = useMemo(() => {
+    const picked = heroFeatures.filter((f) => featureIds.includes(f.id)).map((f) => f.desc);
+    // 금지어가 들어간 글은 그림에 넣지 않는다.
+    return featureTextTrimmed && !featureTextBlocked ? [...picked, featureTextTrimmed] : picked;
+  }, [featureIds, featureTextTrimmed, featureTextBlocked]);
   const selection = useMemo(
     () => buildSelection(character, trait, place, events, heroName, gender, hairDesc, featureDescs, heroAgeId),
     [character, trait, place, events, heroName, gender, hairDesc, featureDescs, heroAgeId]
@@ -1477,7 +1492,32 @@ export function StoryKioskApp() {
                     </div>
 
                     <div className="grid gap-2">
-                      <p className="text-sm font-black text-[#FFE9B0]">특징 (여러 개 선택 가능)</p>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-black text-[#FFE9B0]">특징</p>
+                        <div role="tablist" aria-label="특징 입력 방식" className="flex rounded-xl border-2 border-[#73DFFF]/25 bg-[#151F41] p-1">
+                          {([
+                            { id: "pick", label: "골라서 선택" },
+                            { id: "write", label: "직접 쓰기" }
+                          ] as const).map((tab) => (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              role="tab"
+                              aria-selected={featureTab === tab.id}
+                              onClick={() => setFeatureTab(tab.id)}
+                              className={[
+                                "min-h-9 rounded-lg px-3 text-sm font-black transition active:scale-[0.98]",
+                                featureTab === tab.id ? "bg-[#F0633C] text-white" : "text-[#D4F5FF]"
+                              ].join(" ")}
+                            >
+                              {tab.label}
+                              {tab.id === "pick" && featureIds.length ? ` ${featureIds.length}` : ""}
+                              {tab.id === "write" && featureTextTrimmed ? " ✓" : ""}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {featureTab === "pick" ? (
                       <div className="grid grid-cols-3 gap-2">
                         {heroFeatures.map((item) => {
                           const active = featureIds.includes(item.id);
@@ -1500,6 +1540,28 @@ export function StoryKioskApp() {
                           );
                         })}
                       </div>
+                      ) : (
+                        <div className="grid gap-1">
+                          <textarea
+                            value={featureText}
+                            onChange={(event) => setFeatureText(sanitizeFeatureText(event.target.value))}
+                            maxLength={maxFeatureTextLength}
+                            rows={2}
+                            placeholder="예: 빨간 목도리를 두르고 인삼 모양 가방을 멘"
+                            className="w-full resize-none rounded-xl border border-[#73DFFF]/25 bg-[#151F41] px-4 py-3 text-base font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
+                          />
+                          <p className="flex justify-between gap-2 text-xs font-bold text-[#D4F5FF]/70">
+                            <span>
+                              {featureTextBlocked
+                                ? "다른 표현으로 써 주세요. 이 글은 그림에 넣지 않아요."
+                                : "고른 특징과 함께 그림에 반영돼요."}
+                            </span>
+                            <span>
+                              {featureText.length}/{maxFeatureTextLength}
+                            </span>
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : null}
