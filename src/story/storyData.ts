@@ -24,8 +24,11 @@ export const places: PlaceChoice[] = [
   { id: "island", name: "환상적인 섬", sceneKey: "island", color: "#4CA7D8", imageSrc: "/images/places/island.png" },
   { id: "sea", name: "반짝이는 바닷속", sceneKey: "sea", color: "#2386C8", imageSrc: "/images/places/sea.png" },
   { id: "cloud", name: "구름 위의 성", sceneKey: "cloud", color: "#8E9CE8", imageSrc: "/images/places/cloud.png" },
-  { id: "hyeonchungsa", name: "현충사", sceneKey: "hyeonchungsa", color: "#2D9C8C", imageSrc: "/images/places/hyeonchungsa.png" },
-  { id: "oeam", name: "외암민속마을", sceneKey: "oeam", color: "#D989A6", imageSrc: "/images/places/oeam.png" }
+  // 금산 장소. 그림 파일(public/images/places/insam.png 등)을 넣으면 imageSrc에 경로를 적는다.
+  // 비어 있으면 장소 버튼은 CSS 그림, 큰 배경은 기본 동화 배경을 쓴다.
+  { id: "insam", name: "금산 인삼마을", sceneKey: "insam", color: "#4F8A3D", imageSrc: "" },
+  { id: "jeokbyeok", name: "적벽강", sceneKey: "jeokbyeok", color: "#B5603F", imageSrc: "" },
+  { id: "chilbaek", name: "칠백의총", sceneKey: "chilbaek", color: "#6B7A8F", imageSrc: "" }
 ];
 
 export const eventGroups = {

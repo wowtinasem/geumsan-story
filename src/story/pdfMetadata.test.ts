@@ -7,12 +7,12 @@ describe("buildStoryPdfMetadata", () => {
       buildStoryPdfMetadata({
         classId: "M-01",
         characterName: "가야",
-        place: "현충사",
+        place: "적벽강",
         gender: "girl",
         createdAt: new Date("2026-06-06T03:00:00.000Z")
       })
     ).toEqual({
-      title: "소녀 가야의 현충사 모험",
+      title: "소녀 가야의 적벽강 모험",
       schoolLabel: "모산초등학교 3~6학년 동화 만들기",
       filename: "M-01-story-2026-06-06.pdf"
     });

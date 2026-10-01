@@ -166,7 +166,7 @@ function buildPrompt(selection, grade) {
 반드시 지킬 고정값(절대 바꾸지 않는다):
 - 주인공의 이름은 반드시 '${name}'(으)로 한다. 다른 이름으로 바꾸거나 새로 지어내지 않는다.
 - 배경(장소)은 반드시 '${placeName}'(으)로 한다. 아래 규칙의 예시에 다른 장소가 나와도 그것으로 바꾸지 않는다.
-${genderWord ? `- 주인공은 '${genderWord}'이다. 성별과 나이대를 바꾸지 않고, 그 나이에 어울리는 말투와 행동으로 쓴다.\n` : ""}${!isUpper ? "- 초등 3~4학년용이므로 각 쪽은 반드시 1~2개의 짧은 문장, 한 쪽당 40~70자 이내로 짧게 쓴다. 절대 길게 늘여 쓰지 않는다.\n" : ""}
+${placeName === "칠백의총" ? "- 이 장소는 나라를 위해 목숨을 바친 분들을 기리는 곳이다. 추모하는 마음을 지키고, 소란스럽거나 가볍게 다루지 않는다. 파티·장난 같은 요소는 넣지 않는다.\n" : ""}${genderWord ? `- 주인공은 '${genderWord}'이다. 성별과 나이대를 바꾸지 않고, 그 나이에 어울리는 말투와 행동으로 쓴다.\n` : ""}${!isUpper ? "- 초등 3~4학년용이므로 각 쪽은 반드시 1~2개의 짧은 문장, 한 쪽당 40~70자 이내로 짧게 쓴다. 절대 길게 늘여 쓰지 않는다.\n" : ""}
 중요 소재 반영 규칙:
 - 2쪽 발단에는 반드시 '${opening}'의 핵심 소재가 보여야 한다.
 - 3쪽 전개에는 반드시 '${development}'의 핵심 행동이 이어져야 한다.
@@ -261,8 +261,9 @@ ${genderWord ? `- 주인공은 '${genderWord}'이다. 성별과 나이대를 바
 
 15) 배경은 단순한 장소가 아니라 사건에 영향을 주는 요소로 활용한다.
 예시:
-- 현충사의 역사적 흔적이 단서가 된다.
-- 외암마을의 전통 생활 방식이 문제 해결에 도움이 된다.
+- 인삼밭의 그늘막과 붉은 인삼 열매가 사건의 단서가 된다.
+- 적벽강의 붉은 절벽과 물길이 문제 해결에 영향을 준다.
+- 칠백의총의 오래된 비석과 소나무가 이야기의 실마리를 준다.
 - 장소의 특징이 사건의 원인이나 해결 과정에 연결된다.
 
 16) 반복 표현을 피한다.
@@ -386,8 +387,9 @@ function buildImagePrompt(selection, scene, pageIndex) {
     island: "dreamlike island, turquoise water, round rocks, colorful flowers, soft clouds",
     sea: "sparkling underwater world, coral gardens, bubbles, gentle blue light",
     cloud: "castle above the clouds, soft white cloud bridges, pearl towers, pastel sky",
-    hyeonchungsa: "Hyeonchungsa shrine in Asan, quiet historic Korean memorial grounds, traditional tiled buildings, pine trees, respectful warm atmosphere",
-    oeam: "Oeam Folk Village in Asan, traditional Korean hanok houses, stone walls, old village paths, gentle rural heritage atmosphere"
+    insam: "a sunlit Korean ginseng village in Geumsan, long rows of low ginseng plants under dark green shade screens on wooden frames, glossy five-part leaves with clusters of bright red berries, a few cozy traditional houses at the edge of the fields, forested mountain ridges behind, warm earthy soil",
+    jeokbyeok: "a wide calm river curving beneath tall reddish-brown rock cliffs, pebbled riverbank, willow trees, mist over the water, soft golden late-afternoon light",
+    chilbaek: "a quiet Korean memorial ground with a wide stone-paved courtyard, a tall stone monument, a low tiled-roof shrine gate, rows of tall pine trees, still and solemn morning light"
   };
 
   // 이름·유형(남성/여성/남자 어린이/여자 어린이/로봇)·나이대·머리색·특징으로 주인공 외형을 구성한다.
@@ -445,6 +447,7 @@ function buildImagePrompt(selection, scene, pageIndex) {
     "Supporting characters may appear only when needed by the story, but keep them small and secondary. They must not distract from, replace, duplicate, or be confused with the protagonist.",
     "Do not include Sami, the app guide mascot (a cute ginseng-root sprite with leaves and red berries on its head), logos, watermark, text labels, captions, or any extra sticker-like overlay inside the generated illustration.",
     `Setting bible: ${settingBible[placeKey] || settingBible.village}. Keep the same world design, palette, lighting mood, and material style across pages.`,
+    ...(placeKey === "chilbaek" ? ["Keep the mood respectful and quiet; no party, no balloons, no playful chaos."] : []),
     "Use a consistent square storybook composition: protagonist clearly visible in the foreground or middle ground, clear foreground action, soft background depth, no extreme camera angle changes, no cropping that makes the character unrecognizable.",
     `This is page ${pageNum} of a 6-page continuous story; this page should ${flowRoleEn}. Illustrate the specific moment described below with its own distinct action, pose, expression, composition, and background detail.`,
     "Across the 6 pages each illustration must look clearly different and follow the story's progression in order; never repeat the same scene, pose, or composition. Keep the same protagonist and the same outfit while only the action and surroundings change to match each page's moment.",

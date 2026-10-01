@@ -22,4 +22,9 @@ describe("getKioskArtworkSource", () => {
     ).toBe("data:image/png;base64,abc");
     expect(getKioskArtworkSource({ step: "result", placeImageSrc: "/images/places/sea.png" })).toBe("/images/places/sea.png");
   });
+
+  test("falls back to the default artwork when a place has no image yet", () => {
+    expect(getKioskArtworkSource({ step: "place", placeImageSrc: "" })).toBe(initialStoryArtworkSrc);
+    expect(getKioskArtworkSource({ step: "result", placeImageSrc: "" })).toBe(initialStoryArtworkSrc);
+  });
 });

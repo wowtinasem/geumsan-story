@@ -459,23 +459,44 @@ function MiniPlaceArt({ place }: { place: PlaceChoice }) {
           <span className="absolute bottom-5 right-4 h-7 w-16 rounded-full bg-white/90" />
         </>
       ) : null}
-      {scene === "hyeonchungsa" ? (
+      {scene === "insam" ? (
         <>
-          <span className="absolute inset-x-0 bottom-0 h-7 rounded-t-[50%] bg-[linear-gradient(180deg,#7BC87F,#407B4D)]" />
-          <span className="absolute bottom-6 left-12 h-9 w-24 rounded-b-lg bg-[linear-gradient(145deg,#F0C98D,#B77945)] shadow-[inset_-5px_-5px_8px_rgba(75,42,20,0.18),0_6px_10px_rgba(0,0,0,0.18)]" />
-          <span className="absolute bottom-[58px] left-8 h-0 w-0 border-x-[60px] border-b-[24px] border-x-transparent border-b-[#4F5961] drop-shadow-[0_5px_4px_rgba(0,0,0,0.22)]" />
-          <span className="absolute bottom-[82px] left-12 h-2 w-24 rounded-full bg-[#2B3339]" />
-          <span className="absolute bottom-7 right-10 h-14 w-9 rounded-t-full bg-[linear-gradient(145deg,#6ECF85,#2E8F4F)] shadow-[inset_-5px_-7px_9px_rgba(9,80,45,0.22)]" />
+          {/* 인삼밭: 흙 이랑 + 검은 그늘막 + 초록 잎 + 붉은 열매, 뒤편에 초가집 */}
+          <span className="absolute inset-x-0 bottom-0 h-6 bg-[linear-gradient(180deg,#9A6B3F,#6B4526)]" />
+          {[6, 46, 86, 126].map((left) => (
+            <span key={left} className="absolute bottom-6 h-3 w-9 rounded-t-full bg-[linear-gradient(145deg,#7FD27A,#3E8E45)]" style={{ left }} />
+          ))}
+          {[14, 54, 94, 134].map((left) => (
+            <span key={left} className="absolute bottom-8 h-2 w-2 rounded-full bg-[#E53935] shadow-[0_0_4px_rgba(229,57,53,0.7)]" style={{ left }} />
+          ))}
+          <span className="absolute bottom-[38px] left-0 h-2 w-full -skew-y-3 bg-[#1F2A24]/85 shadow-[0_4px_6px_rgba(0,0,0,0.25)]" />
+          <span className="absolute bottom-[46px] right-6 h-5 w-10 rounded-b-sm bg-[linear-gradient(145deg,#F2DDB0,#C99B5E)]" />
+          <span className="absolute bottom-[64px] right-3 h-3 w-16 rounded-t-[60%] bg-[linear-gradient(180deg,#E3C27A,#B88A3E)]" />
         </>
       ) : null}
-      {scene === "oeam" ? (
+      {scene === "jeokbyeok" ? (
         <>
-          <span className="absolute inset-x-0 bottom-0 h-7 rounded-t-[55%] bg-[linear-gradient(180deg,#91D58B,#4E9B59)]" />
-          <span className="absolute bottom-5 left-6 h-7 w-14 rounded-b-md bg-[linear-gradient(145deg,#E4C28A,#A96E3F)] shadow-[inset_-4px_-5px_7px_rgba(94,48,22,0.18),0_5px_9px_rgba(0,0,0,0.16)]" />
-          <span className="absolute bottom-11 left-2 h-0 w-0 border-x-[36px] border-b-[22px] border-x-transparent border-b-[#3F4A4F] drop-shadow-[0_4px_3px_rgba(0,0,0,0.18)]" />
-          <span className="absolute bottom-4 left-[82px] h-5 w-24 rounded-full bg-[linear-gradient(145deg,#B8B2A4,#7F7768)]" />
-          <span className="absolute bottom-8 right-10 h-8 w-16 rounded-b-md bg-[linear-gradient(145deg,#F0D49B,#B9834B)] shadow-[inset_-4px_-5px_7px_rgba(94,48,22,0.18)]" />
-          <span className="absolute bottom-[60px] right-6 h-0 w-0 border-x-[42px] border-b-[24px] border-x-transparent border-b-[#435158]" />
+          {/* 적벽강: 붉은 절벽 + 푸른 강물 띠 */}
+          <span className="absolute bottom-6 left-0 h-14 w-24 rounded-tr-[40%] bg-[linear-gradient(160deg,#D9784A,#8E3B22)] shadow-[inset_-6px_-6px_10px_rgba(60,20,10,0.3)]" />
+          <span className="absolute bottom-6 left-16 h-9 w-16 rounded-tr-[60%] bg-[linear-gradient(160deg,#C9663C,#7D3219)]" />
+          <span className="absolute bottom-[52px] left-3 h-4 w-10 rounded-full bg-[linear-gradient(145deg,#6FC27A,#3A8A4A)]" />
+          <span className="absolute inset-x-0 bottom-0 h-7 bg-[linear-gradient(180deg,#58C3E8,#1D6FA8)]" />
+          <span className="absolute bottom-3 left-6 h-1 w-20 rounded-full bg-white/60" />
+          <span className="absolute bottom-1.5 right-8 h-1 w-14 rounded-full bg-white/50" />
+        </>
+      ) : null}
+      {scene === "chilbaek" ? (
+        <>
+          {/* 칠백의총: 회색 비석 + 소나무, 차분한 색 */}
+          <span className="absolute inset-x-0 bottom-0 h-6 rounded-t-[45%] bg-[linear-gradient(180deg,#86A98A,#4D6B53)]" />
+          <span className="absolute bottom-5 left-[60px] h-12 w-7 rounded-t-md bg-[linear-gradient(145deg,#D9DDE3,#8A929C)] shadow-[inset_-4px_-5px_7px_rgba(40,48,58,0.25),0_6px_10px_rgba(0,0,0,0.2)]" />
+          <span className="absolute bottom-4 left-[52px] h-2 w-11 rounded-sm bg-[#7C848E]" />
+          {[14, 116].map((left) => (
+            <span key={left} className="absolute bottom-5 h-0 w-0 border-x-[14px] border-b-[34px] border-x-transparent border-b-[#2F6B45] drop-shadow-[0_4px_3px_rgba(0,0,0,0.2)]" style={{ left }} />
+          ))}
+          {[24, 126].map((left) => (
+            <span key={left} className="absolute bottom-2 h-4 w-2 bg-[#6B4A2F]" style={{ left }} />
+          ))}
         </>
       ) : null}
       <span className="absolute inset-0 rounded-xl bg-[radial-gradient(circle_at_25%_18%,rgba(255,255,255,0.42),transparent_18%),linear-gradient(180deg,rgba(255,255,255,0.2),transparent_42%,rgba(0,0,0,0.2))]" />

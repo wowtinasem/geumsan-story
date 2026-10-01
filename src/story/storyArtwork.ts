@@ -12,12 +12,12 @@ export function getKioskArtworkSource({
   generatedImage?: string;
 }) {
   if (step === "result") {
-    return generatedImage || placeImageSrc;
+    return generatedImage || placeImageSrc || initialStoryArtworkSrc;
   }
 
   if (step === "character" || step === "trait") {
     return initialStoryArtworkSrc;
   }
 
-  return placeImageSrc;
+  return placeImageSrc || initialStoryArtworkSrc;
 }
