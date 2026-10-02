@@ -16,8 +16,10 @@ const corsOrigin = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean)
   : true;
 // Gemini 네이티브 이미지 생성 (무료 티어 지원)
-const geminiImageModel = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
+const geminiImageModel = process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image";
 const geminiThinkingBudget = Number(process.env.GEMINI_THINKING_BUDGET ?? 0);
+// Gemini 3 이후 모델은 thinkingBudget 대신 thinkingLevel을 쓴다. 동화 글은 빠른 응답이 중요해서 기본 low.
+const geminiThinkingLevel = String(process.env.GEMINI_THINKING_LEVEL ?? "low").trim();
 // Veo 영상 생성용 공통 키/엔드포인트 (이미지·동화 호출과 동일한 GEMINI_API_KEY 사용)
 const geminiApiKey = process.env.GEMINI_API_KEY || "";
 const geminiBase = "https://generativelanguage.googleapis.com/v1beta";
@@ -86,7 +88,7 @@ app.use(express.json({ limit: "12mb" }));
 
 const providers = {
   gemini: {
-    model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
     key: process.env.GEMINI_API_KEY,
     call: callGemini
   },
@@ -522,8 +524,12 @@ async function callGemini(provider, prompt) {
     responseMimeType: "application/json"
   };
 
-  if (provider.model.includes("2.5") && Number.isFinite(geminiThinkingBudget)) {
-    generationConfig.thinkingConfig = { thinkingBudget: geminiThinkingBudget };
+  if (provider.model.includes("2.5")) {
+    if (Number.isFinite(geminiThinkingBudget)) {
+      generationConfig.thinkingConfig = { thinkingBudget: geminiThinkingBudget };
+    }
+  } else if (geminiThinkingLevel) {
+    generationConfig.thinkingConfig = { thinkingLevel: geminiThinkingLevel };
   }
 
   const data = await fetchJson(url, {
@@ -534,7 +540,7 @@ async function callGemini(provider, prompt) {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig
     })
-  }, 15000);
+  }, 30000);
 
   return data.candidates?.[0]?.content?.parts?.map((part) => part.text).join("\n") || "";
 }
@@ -624,6 +630,7 @@ app.get("/api/health", (req, res) => {
     imageModel: geminiImageModel,
     imageKeyLoaded: Boolean(providers.gemini.key),
     thinkingBudget: geminiThinkingBudget,
+    thinkingLevel: geminiThinkingLevel,
     videoModel: veoModel,
     videoSeconds: veoDurationSeconds,
     videoKeys: geminiVideoKeys.length,

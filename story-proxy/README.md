@@ -40,7 +40,7 @@ If the proxy fails, the browser app falls back to the built-in story engine.
 
 ```txt
 GEMINI_API_KEY=...
-GEMINI_IMAGE_MODEL=gemini-2.5-flash-image
+GEMINI_IMAGE_MODEL=gemini-3.1-flash-image
 ```
 
 The app intentionally uses a prompt like "warm 3D animated feature film look" instead of naming a specific studio style.

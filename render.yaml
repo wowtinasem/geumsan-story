@@ -12,10 +12,13 @@ services:
       # 한 학교 학생들이 같은 인터넷 주소로 접속하므로 반 전체 사용량을 감안한다.
       - key: MAX_PER_MIN
         value: "150"
+      # 2.5 모델은 새 사용자에게 막혀 있어 3.x 모델을 쓴다.
       - key: GEMINI_MODEL
-        value: gemini-2.5-flash
+        value: gemini-3.8-flash
       - key: GEMINI_IMAGE_MODEL
-        value: gemini-2.5-flash-image
+        value: gemini-3.1-flash-image
+      - key: GEMINI_THINKING_LEVEL
+        value: low
       - key: GEMINI_VIDEO_MODEL
         value: veo-3.1-fast-generate-preview
       - key: GEMINI_THINKING_BUDGET
