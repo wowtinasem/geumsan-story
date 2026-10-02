@@ -819,6 +819,9 @@ export function StoryKioskApp() {
   const [musicState, setMusicState] = useState<StoryMusicState>("paused");
   const [musicGenreId, setMusicGenreId] = useState<StoryMusicGenreId>(defaultMusicGenreId);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // 첫 화면 타이틀 영상(16:9)이 화면에 맞춰 줄어든 크기. 로그인 상자도 같은 비율로 키우고 줄인다.
+  const titleFrameRef = useRef<HTMLDivElement | null>(null);
+  const [titleScale, setTitleScale] = useState(1);
 
   // 동화 영상 만들기 상태
   const [videoPageIndex, setVideoPageIndex] = useState(2); // 기본: 절정 부근(3쪽)
@@ -1024,6 +1027,19 @@ export function StoryKioskApp() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (step !== "login") return;
+    const frame = titleFrameRef.current;
+    if (!frame || typeof ResizeObserver === "undefined") return;
+    // 기준: 영상 폭 1280px일 때 상자 배율 1. 너무 작거나 커지지 않게 제한한다.
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry.contentRect.width;
+      setTitleScale(Math.min(1.5, Math.max(0.7, width / 1280)));
+    });
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [step]);
 
   // 무동작 자동 복귀(유휴 타이머)는 제거했다.
   // 학생이 "처음으로" 버튼을 직접 누르기 전까지 진행 상황을 그대로 유지한다.
@@ -1273,22 +1289,12 @@ export function StoryKioskApp() {
     <main className="h-[100dvh] overflow-hidden bg-[#090D20] text-white">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(255,126,72,0.24),transparent_34%),radial-gradient(circle_at_82%_10%,rgba(45,107,255,0.24),transparent_32%),radial-gradient(circle_at_50%_90%,rgba(125,232,255,0.16),transparent_45%),linear-gradient(180deg,#151936_0%,#090D20_100%)]" />
       {step === "login" ? (
-        <>
-          <video
-            key="title-video"
-            className="pointer-events-none fixed inset-0 h-full w-full object-cover"
-            src="/videos/title01.mp4"
-            poster="/images/title01-poster.jpg"
-            autoPlay
-            muted
-            playsInline
-            preload="auto"
-            aria-hidden="true"
-          />
-          <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_50%_62%,rgba(9,13,32,0.35),transparent_60%)]" />
-        </>
+        <div className="pointer-events-none fixed inset-0 overflow-hidden bg-[#1B1236]" aria-hidden="true">
+          {/* 화면과 영상 비율이 달라 생기는 빈 띠를 같은 그림을 흐리게 깔아 채운다 */}
+          <img src="/images/title01-poster.jpg" alt="" className="h-full w-full scale-110 object-cover opacity-60 blur-2xl" />
+        </div>
       ) : null}
-      <div className="pointer-events-none fixed inset-6 rounded-[34px] border-4 border-[#244DFF] shadow-[inset_0_0_0_3px_rgba(255,177,93,0.85),0_0_34px_rgba(36,77,255,0.42)]" />
+      <div className={(step === "login" ? "hidden " : "") + "pointer-events-none fixed inset-6 rounded-[34px] border-4 border-[#244DFF] shadow-[inset_0_0_0_3px_rgba(255,177,93,0.85),0_0_34px_rgba(36,77,255,0.42)]"} />
 
       <section className={["relative grid h-full min-h-0 overflow-hidden p-5 sm:p-6 lg:p-8", step === "login" || step === "attract" ? "grid-rows-1" : "grid-rows-[auto_minmax(0,1fr)]"].join(" ")}>
         {step !== "login" && step !== "attract" ? (
@@ -1334,8 +1340,27 @@ export function StoryKioskApp() {
 
         {step === "login" ? (
           <div className="relative z-10 min-h-0">
-            {/* 타이틀 영상의 가운데 빈 하늘(제목 아래, 양옆 인물 사이)에 들어가는 작은 로그인 상자 */}
-            <div className="fixed left-1/2 top-[56%] z-10 w-[min(400px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2">
+            {/* 영상 전체가 보이도록 화면에 맞춰 줄인 16:9 틀 */}
+            <div
+              ref={titleFrameRef}
+              className="fixed left-1/2 top-1/2 aspect-video w-[min(100vw,calc(100dvh*16/9))] -translate-x-1/2 -translate-y-1/2"
+            >
+              <video
+                key="title-video"
+                className="pointer-events-none absolute inset-0 h-full w-full object-contain"
+                src="/videos/title01.mp4"
+                poster="/images/title01-poster.jpg"
+                autoPlay
+                muted
+                playsInline
+                preload="auto"
+                aria-hidden="true"
+              />
+            {/* 타이틀 영상의 가운데 빈 하늘(제목 아래, 양옆 인물 사이)에 들어가는 로그인 상자 */}
+            <div
+              className="absolute left-1/2 top-[57%] z-10 w-[400px] max-w-[calc(100vw-32px)]"
+              style={{ transform: `translate(-50%, -50%) scale(${titleScale})` }}
+            >
               {adminMode ? (
                 <form
                   onSubmit={(event) => {
@@ -1441,6 +1466,7 @@ export function StoryKioskApp() {
                 </form>
               )}
             </div>
+            </div>
             {!adminMode ? (
               <button
                 type="button"
@@ -1448,7 +1474,7 @@ export function StoryKioskApp() {
                   setAdminMode(true);
                   setClassLoginMessage("");
                 }}
-                className="fixed left-9 top-9 z-20 inline-flex min-h-9 items-center justify-center rounded-xl border border-[#73DFFF]/30 bg-[#101A38]/55 px-3 text-xs font-black text-[#DDFBFF]/75 active:scale-[0.98]"
+                className="fixed left-3 top-3 z-20 inline-flex min-h-9 items-center justify-center rounded-xl border border-[#73DFFF]/30 bg-[#101A38]/55 px-3 text-xs font-black text-[#DDFBFF]/75 active:scale-[0.98]"
               >
                 관리자
               </button>
