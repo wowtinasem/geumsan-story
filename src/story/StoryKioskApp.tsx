@@ -1272,6 +1272,22 @@ export function StoryKioskApp() {
   return (
     <main className="h-[100dvh] overflow-hidden bg-[#090D20] text-white">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(255,126,72,0.24),transparent_34%),radial-gradient(circle_at_82%_10%,rgba(45,107,255,0.24),transparent_32%),radial-gradient(circle_at_50%_90%,rgba(125,232,255,0.16),transparent_45%),linear-gradient(180deg,#151936_0%,#090D20_100%)]" />
+      {step === "login" ? (
+        <>
+          <video
+            key="title-video"
+            className="pointer-events-none fixed inset-0 h-full w-full object-cover"
+            src="/videos/title01.mp4"
+            poster="/images/title01-poster.jpg"
+            autoPlay
+            muted
+            playsInline
+            preload="auto"
+            aria-hidden="true"
+          />
+          <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_50%_62%,rgba(9,13,32,0.35),transparent_60%)]" />
+        </>
+      ) : null}
       <div className="pointer-events-none fixed inset-6 rounded-[34px] border-4 border-[#244DFF] shadow-[inset_0_0_0_3px_rgba(255,177,93,0.85),0_0_34px_rgba(36,77,255,0.42)]" />
 
       <section className={["relative grid h-full min-h-0 overflow-hidden p-5 sm:p-6 lg:p-8", step === "login" || step === "attract" ? "grid-rows-1" : "grid-rows-[auto_minmax(0,1fr)]"].join(" ")}>
@@ -1317,27 +1333,19 @@ export function StoryKioskApp() {
         ) : null}
 
         {step === "login" ? (
-          <div className="relative z-10 grid min-h-0 place-items-center overflow-y-auto px-3 py-4 text-center">
-            <div className="grid max-h-full w-full max-w-[820px] gap-4 rounded-[34px] border-2 border-[#73DFFF]/35 bg-[#101A38]/82 px-6 py-5 shadow-[0_0_42px_rgba(36,77,255,0.28)] backdrop-blur sm:px-9">
-              <div className="grid gap-2">
-                <h1 className="text-balance text-[clamp(24px,3.4vw,44px)] font-black leading-tight text-white drop-shadow-[0_0_28px_rgba(125,232,255,0.35)]">
-                  AI와 함께 나만의 동화책 만들기
-                </h1>
-                <p className="mx-auto max-w-[620px] break-keep text-balance text-[clamp(14px,1.5vw,19px)] font-bold leading-relaxed text-[#D4F5FF]">
-                  주인공을 고르고, 사건을 이어 붙이면 세상에 하나뿐인 나만의 동화책이 완성돼요.
-                </p>
-              </div>
-
+          <div className="relative z-10 min-h-0">
+            {/* 타이틀 영상의 가운데 빈 하늘(제목 아래, 양옆 인물 사이)에 들어가는 작은 로그인 상자 */}
+            <div className="fixed left-1/2 top-[56%] z-10 w-[min(400px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2">
               {adminMode ? (
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
                     if (!classLoginPending) void signInAsAdmin();
                   }}
-                  className="mx-auto grid w-full max-w-[440px] gap-3 rounded-[24px] border border-[#FFB15D]/45 bg-[#0B1029]/80 p-5 text-left"
+                  className="grid w-full gap-2 rounded-[20px] border border-[#FFB15D]/45 bg-[#0B1029]/75 px-4 py-3 text-left shadow-[0_14px_36px_rgba(0,0,0,0.45)] backdrop-blur-md"
                 >
-                  <p className="text-base font-black text-[#FFE9B0]">관리자 입장</p>
-                  <label className="grid gap-1 text-sm font-black text-[#D4F5FF]" htmlFor="admin-password">
+                  <p className="text-sm font-black text-[#FFE9B0]">관리자 입장</p>
+                  <label className="grid gap-0.5 text-xs font-black text-[#D4F5FF]" htmlFor="admin-password">
                     관리자 비밀번호
                     <input
                       id="admin-password"
@@ -1348,28 +1356,26 @@ export function StoryKioskApp() {
                       autoFocus
                       value={passwordInput}
                       onChange={(event) => setPasswordInput(event.target.value)}
-                      className="min-h-14 w-full min-w-0 rounded-2xl border-2 border-[#73DFFF]/30 bg-[#151F41] px-5 text-lg font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
+                      className="min-h-10 w-full min-w-0 rounded-xl border-2 border-[#73DFFF]/30 bg-[#151F41]/90 px-3 text-base font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
                     />
                   </label>
-                  <button
-                    type="submit"
-                    disabled={classLoginPending}
-                    className="mt-1 min-h-14 rounded-2xl border-2 border-[#FFB15D] bg-[#F0633C] px-6 text-lg font-black text-white shadow-[0_0_24px_rgba(240,99,60,0.26)] active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#6B5C72]"
-                  >
-                    {classLoginPending ? "확인 중" : "관리자로 입장"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAdminMode(false);
-                      setPasswordInput("");
-                      setClassLoginMessage("");
-                    }}
-                    className="min-h-11 rounded-2xl border border-[#73DFFF]/35 px-4 text-sm font-black text-[#DDFBFF] active:scale-[0.98]"
-                  >
-                    학생 입장으로 돌아가기
-                  </button>
-                  <p className="min-h-6 text-sm font-black text-[#FFD073]">{classLoginMessage}</p>
+                  <div className="grid grid-cols-[1fr_auto] gap-2">
+                    <button type="submit" disabled={classLoginPending} className="mt-0.5 min-h-11 rounded-xl border-2 border-[#FFB15D] bg-[#F0633C] px-4 text-base font-black text-white shadow-[0_0_20px_rgba(240,99,60,0.26)] active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#6B5C72]">
+                      {classLoginPending ? "확인 중" : "관리자로 입장"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdminMode(false);
+                        setPasswordInput("");
+                        setClassLoginMessage("");
+                      }}
+                      className="mt-0.5 min-h-11 rounded-xl border border-[#73DFFF]/35 px-3 text-sm font-black text-[#DDFBFF] active:scale-[0.98]"
+                    >
+                      돌아가기
+                    </button>
+                  </div>
+                  {classLoginMessage ? <p className="text-xs font-black text-[#FFD073]">{classLoginMessage}</p> : null}
                 </form>
               ) : (
                 <form
@@ -1377,10 +1383,10 @@ export function StoryKioskApp() {
                     event.preventDefault();
                     if (!classLoginPending) void signInAsStudent();
                   }}
-                  className="mx-auto grid w-full max-w-[520px] gap-3 rounded-[24px] border border-[#FFB15D]/45 bg-[#0B1029]/80 p-5 text-left"
+                  className="grid w-full gap-2 rounded-[20px] border border-[#FFB15D]/45 bg-[#0B1029]/75 px-4 py-3 text-left shadow-[0_14px_36px_rgba(0,0,0,0.45)] backdrop-blur-md"
                 >
-                  <p className="text-base font-black text-[#FFE9B0]">나를 소개해요</p>
-                  <label className="grid gap-1 text-sm font-black text-[#D4F5FF]">
+                  <p className="text-sm font-black text-[#FFE9B0]">나를 소개해요</p>
+                  <label className="grid gap-0.5 text-xs font-black text-[#D4F5FF]">
                     학교명
                     <input
                       name="school"
@@ -1388,54 +1394,50 @@ export function StoryKioskApp() {
                       placeholder="예: 금산초등학교"
                       value={studentSchool}
                       onChange={(event) => setStudentSchool(sanitizeFeatureText(event.target.value).slice(0, 20))}
-                      className="min-h-14 w-full min-w-0 rounded-2xl border-2 border-[#73DFFF]/30 bg-[#151F41] px-5 text-lg font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
+                      className="min-h-10 w-full min-w-0 rounded-xl border-2 border-[#73DFFF]/30 bg-[#151F41]/90 px-3 text-base font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
                     />
                   </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="grid gap-1 text-sm font-black text-[#D4F5FF]">
+                  <div className="grid grid-cols-[1fr_1fr_2fr] gap-2">
+                    <label className="grid gap-0.5 text-xs font-black text-[#D4F5FF]">
                       학년
                       <input
                         name="grade"
                         inputMode="numeric"
                         autoComplete="off"
-                        placeholder="예: 4"
+                        placeholder="4"
                         value={studentGrade}
                         onChange={(event) => setStudentGrade(event.target.value.replace(/[^1-6]/g, "").slice(0, 1))}
-                        className="min-h-14 w-full min-w-0 rounded-2xl border-2 border-[#73DFFF]/30 bg-[#151F41] px-5 text-lg font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
+                        className="min-h-10 w-full min-w-0 rounded-xl border-2 border-[#73DFFF]/30 bg-[#151F41]/90 px-3 text-base font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
                       />
                     </label>
-                    <label className="grid gap-1 text-sm font-black text-[#D4F5FF]">
+                    <label className="grid gap-0.5 text-xs font-black text-[#D4F5FF]">
                       번호
                       <input
                         name="number"
                         inputMode="numeric"
                         autoComplete="off"
-                        placeholder="예: 12"
+                        placeholder="12"
                         value={studentNumber}
                         onChange={(event) => setStudentNumber(event.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
-                        className="min-h-14 w-full min-w-0 rounded-2xl border-2 border-[#73DFFF]/30 bg-[#151F41] px-5 text-lg font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
+                        className="min-h-10 w-full min-w-0 rounded-xl border-2 border-[#73DFFF]/30 bg-[#151F41]/90 px-3 text-base font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
+                      />
+                    </label>
+                    <label className="grid gap-0.5 text-xs font-black text-[#D4F5FF]">
+                      이름
+                      <input
+                        name="student-name"
+                        autoComplete="off"
+                        placeholder="홍길동"
+                        value={studentName}
+                        onChange={(event) => setStudentName(sanitizeFeatureText(event.target.value).slice(0, 10))}
+                        className="min-h-10 w-full min-w-0 rounded-xl border-2 border-[#73DFFF]/30 bg-[#151F41]/90 px-3 text-base font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
                       />
                     </label>
                   </div>
-                  <label className="grid gap-1 text-sm font-black text-[#D4F5FF]">
-                    이름
-                    <input
-                      name="student-name"
-                      autoComplete="off"
-                      placeholder="예: 홍길동"
-                      value={studentName}
-                      onChange={(event) => setStudentName(sanitizeFeatureText(event.target.value).slice(0, 10))}
-                      className="min-h-14 w-full min-w-0 rounded-2xl border-2 border-[#73DFFF]/30 bg-[#151F41] px-5 text-lg font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
-                    />
-                  </label>
-                  <button
-                    type="submit"
-                    disabled={classLoginPending}
-                    className="mt-1 min-h-14 rounded-2xl border-2 border-[#FFB15D] bg-[#F0633C] px-6 text-lg font-black text-white shadow-[0_0_24px_rgba(240,99,60,0.26)] active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#6B5C72]"
-                  >
+                  <button type="submit" disabled={classLoginPending} className="mt-0.5 min-h-11 rounded-xl border-2 border-[#FFB15D] bg-[#F0633C] px-4 text-base font-black text-white shadow-[0_0_20px_rgba(240,99,60,0.26)] active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#6B5C72]">
                     {classLoginPending ? "확인 중" : "동화 만들기 시작"}
                   </button>
-                  <p className="min-h-6 text-sm font-black text-[#FFD073]">{classLoginMessage}</p>
+                  {classLoginMessage ? <p className="text-xs font-black text-[#FFD073]">{classLoginMessage}</p> : null}
                 </form>
               )}
             </div>
@@ -1446,7 +1448,7 @@ export function StoryKioskApp() {
                   setAdminMode(true);
                   setClassLoginMessage("");
                 }}
-                className="absolute bottom-4 right-4 z-20 inline-flex min-h-11 items-center justify-center rounded-2xl border border-[#73DFFF]/35 bg-[#101A38]/86 px-4 text-sm font-black text-[#DDFBFF]/80 active:scale-[0.98]"
+                className="fixed left-9 top-9 z-20 inline-flex min-h-9 items-center justify-center rounded-xl border border-[#73DFFF]/30 bg-[#101A38]/55 px-3 text-xs font-black text-[#DDFBFF]/75 active:scale-[0.98]"
               >
                 관리자
               </button>
