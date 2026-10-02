@@ -663,6 +663,35 @@ app.post("/api/admin-logout", (req, res) => {
   return res.json(adminAccess.logout(req.body?.sessionToken));
 });
 
+// 관리자 전용: 서버의 Gemini 키로 쓸 수 있는 모델 목록을 확인한다(모델 이름 점검용). 키 값은 돌려주지 않는다.
+app.post("/api/admin-models", async (req, res) => {
+  const access = adminAccess.verify(req.body?.sessionToken);
+  if (!access.ok || access.role !== "admin") {
+    return res.status(401).json({ error: "admin_required" });
+  }
+  if (!providers.gemini.key) {
+    return res.status(503).json({ error: "missing_api_key" });
+  }
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=${encodeURIComponent(providers.gemini.key)}`
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      return res.status(502).json({ error: "list_failed", status: response.status, message: data?.error?.message });
+    }
+    const models = (data.models || []).map((model) => ({
+      name: String(model.name || "").replace(/^models\//, ""),
+      methods: model.supportedGenerationMethods || []
+    }));
+    return res.json({ configured: { text: providers.gemini.model, image: geminiImageModel, video: veoModel }, models });
+  } catch (error) {
+    console.error(error);
+    return res.status(502).json({ error: "list_failed" });
+  }
+});
+
 // 수업용 아이디(M-01~M-99)와 교사 초기화 코드는 폐지됐다.
 // 예전 앱이 캐시된 태블릿이 계속 호출할 수 있으므로 명시적으로 막는다.
 app.post(["/api/class-login", "/api/class-reset"], (req, res) => {
