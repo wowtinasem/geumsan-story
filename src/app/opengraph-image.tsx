@@ -23,7 +23,7 @@ async function loadKoreanFont(text: string): Promise<ArrayBuffer | null> {
 export default async function OpengraphImage() {
   const title = "AI와 함께 나만의 동화책 만들기";
   const heading = "금산교육지원청 찾아가는 AI동화 수업";
-  const sub = "초등 3~4 · 5~6학년 · 주인공을 골라 6쪽 동화책을 완성해요";
+  const sub = "초등 3~6학년 · 주인공을 골라 6쪽 동화책과 영상을 완성해요";
   const fontData = await loadKoreanFont(`${title}${heading}${sub}0123456789·`);
 
   return new ImageResponse(

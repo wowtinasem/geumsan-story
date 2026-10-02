@@ -104,7 +104,7 @@ export function localStory(selection: StorySelection, grade?: string): StoryResu
 
   return {
     source: "local",
-    pages: (grade === "5-6" ? upperPages : lowerPages).map(cleanStoryText)
+    pages: (grade === "3-4" ? lowerPages : upperPages).map(cleanStoryText)
   };
 }
 

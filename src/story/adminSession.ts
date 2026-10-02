@@ -40,11 +40,6 @@ export function sessionLabel(session: Pick<AdminSession, "role" | "student">) {
   return "관리자";
 }
 
-// 학생 학년(1~6)을 앱 난이도로 바꾼다. 1~4학년은 3~4학년 난이도, 5~6학년은 5~6학년 난이도.
-export function gradeLevelFor(grade: number): "3-4" | "5-6" {
-  return grade >= 5 ? "5-6" : "3-4";
-}
-
 export function clearRetiredClassSessions() {
   if (typeof window === "undefined") return;
 

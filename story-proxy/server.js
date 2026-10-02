@@ -144,8 +144,9 @@ const heroTypeWords = { man: "남성", woman: "여성", boy: "남자 어린이",
 
 function buildPrompt(selection, grade) {
   const events = selection.events || {};
-  const isUpper = grade === "5-6";
-  const gradeLabel = isUpper ? "5~6" : "3~4";
+  // 학년 선택이 없어진 뒤로 앱은 "all"을 보낸다. 3~4학년용 짧은 글은 "3-4"를 보낼 때만 쓴다.
+  const isUpper = grade !== "3-4";
+  const gradeLabel = grade === "3-4" ? "3~4" : grade === "5-6" ? "5~6" : "3~6";
   const g = selection.character?.gender;
   // 예: "여성, 노년(70살 이상) 할머니". 나이대 정보가 없으면 유형만 쓴다.
   const genderWord = cleanPromptText(selection.character?.heroLabel, 60) || heroTypeWords[g] || "";

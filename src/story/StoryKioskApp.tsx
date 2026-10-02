@@ -19,7 +19,6 @@ import { buildStoryPdfMetadata } from "./pdfMetadata";
 import {
   clearAdminSession,
   clearRetiredClassSessions,
-  gradeLevelFor,
   readAdminSession,
   requestAdminLogin,
   requestStudentLogin,
@@ -767,14 +766,14 @@ async function generateStoryPdf({
 
 export function StoryKioskApp() {
   const [step, setStep] = useState<Step>("login");
-  const [grade, setGrade] = useState<"3-4" | "5-6">("3-4");
+  // 학년 선택은 없앴다. 모든 학생이 같은 흐름(풍부한 글 + 동화 영상 만들기)으로 진행한다.
+  const grade = "all";
   // 첫 화면 입장 정보. 학교명·학년은 로그아웃해도 남겨 둬서 같은 반 다음 학생이 이어 쓰기 쉽게 한다.
   const [studentSchool, setStudentSchool] = useState("");
   const [studentGrade, setStudentGrade] = useState("");
   const [studentNumber, setStudentNumber] = useState("");
   const [studentName, setStudentName] = useState("");
   const [adminMode, setAdminMode] = useState(false);
-  const [studentGradeNumber, setStudentGradeNumber] = useState<number | null>(null);
   const [passwordInput, setPasswordInput] = useState("");
   const [classId, setClassId] = useState("");
   const [classSessionToken, setClassSessionToken] = useState("");
@@ -821,7 +820,7 @@ export function StoryKioskApp() {
   const [musicGenreId, setMusicGenreId] = useState<StoryMusicGenreId>(defaultMusicGenreId);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // 5~6학년 영상 만들기 상태
+  // 동화 영상 만들기 상태
   const [videoPageIndex, setVideoPageIndex] = useState(2); // 기본: 절정 부근(3쪽)
   const [videoPhase, setVideoPhase] = useState<"idle" | "clip" | "render" | "ready">("idle");
   const [videoMessage, setVideoMessage] = useState("");
@@ -936,7 +935,6 @@ export function StoryKioskApp() {
     setClassSessionToken("");
     setStudentNumber("");
     setStudentName("");
-    setStudentGradeNumber(null);
     setAdminMode(false);
     setPasswordInput("");
     setClassLoginMessage("로그아웃했어요.");
@@ -960,7 +958,6 @@ export function StoryKioskApp() {
     const session = writeAdminSession({ role: "admin", adminId: result.adminId, sessionToken: result.sessionToken });
     setClassId(sessionLabel(session));
     setClassSessionToken(result.sessionToken);
-    setStudentGradeNumber(null);
     setClassLoginMessage(result.message);
     setStep("attract");
   }
@@ -984,8 +981,6 @@ export function StoryKioskApp() {
     const session = writeAdminSession({ role: "student", student: result.student, sessionToken: result.sessionToken });
     setClassId(sessionLabel(session));
     setClassSessionToken(result.sessionToken);
-    setStudentGradeNumber(result.student.grade);
-    setGrade(gradeLevelFor(result.student.grade));
     setClassLoginMessage(result.message);
     setStep("attract");
   }
@@ -1022,10 +1017,6 @@ export function StoryKioskApp() {
 
       setClassId(sessionLabel(session));
       setClassSessionToken(session.sessionToken);
-      if (session.role === "student" && session.student) {
-        setStudentGradeNumber(session.student.grade);
-        setGrade(gradeLevelFor(session.student.grade));
-      }
       setStep("attract");
     });
 
@@ -1134,7 +1125,7 @@ export function StoryKioskApp() {
     });
   }
 
-  // [5~6학년] 선택한 한 쪽을 Veo로 "움직이는 클립"으로 만든다 (유일한 유료 단계)
+  // 선택한 한 쪽을 Veo로 "움직이는 클립"으로 만든다 (유일한 유료 단계)
   async function makeSceneClip() {
     if (videoPhase === "clip") return;
     setVideoPhase("clip");
@@ -1189,7 +1180,7 @@ export function StoryKioskApp() {
     link.remove();
   }
 
-  // [5~6학년] 6쪽을 하나의 영상으로 묶는다. autoDownload=true면 만들자마자 바로 다운로드.
+  // 6쪽을 하나의 영상으로 묶는다. autoDownload=true면 만들자마자 바로 다운로드.
   // 만든 영상은 storyVideoUrl에 보관해 미리보기 재생과 다운로드에 함께 쓴다.
   async function makeStoryVideo(autoDownload: boolean) {
     if (videoPhase === "render") return;
@@ -1491,38 +1482,15 @@ export function StoryKioskApp() {
                 </span>
 
                 <span className="mt-1 text-[clamp(16px,1.7vw,22px)] font-black text-[#DDFBFF]">
-                  {studentGradeNumber
-                    ? `${studentGradeNumber}학년에게 맞는 단계를 표시했어요. 눌러서 시작해요!`
-                    : "학년을 선택하면 동화 만들기를 시작해요!"}
+                  버튼을 누르면 동화 만들기를 시작해요!
                 </span>
-                <span className="flex flex-wrap items-center justify-center gap-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGrade("3-4");
-                      setStep("character");
-                    }}
-                    className="min-h-16 rounded-[22px] border-2 border-[#FFB15D]/80 bg-[#F0633C] px-10 text-[clamp(20px,2.2vw,30px)] font-black text-white shadow-[0_16px_34px_rgba(240,99,60,0.32)] transition hover:-translate-y-1 active:scale-[0.98]"
-                  >
-                    3~4학년
-                    {studentGradeNumber && gradeLevelFor(studentGradeNumber) === "3-4" ? (
-                      <span className="ml-2 rounded-full bg-white px-2 py-0.5 align-middle text-sm text-[#F0633C]">내 학년</span>
-                    ) : null}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGrade("5-6");
-                      setStep("character");
-                    }}
-                    className="min-h-16 rounded-[22px] border-2 border-[#73DFFF]/80 bg-[#244DFF] px-10 text-[clamp(20px,2.2vw,30px)] font-black text-white shadow-[0_16px_34px_rgba(36,77,255,0.32)] transition hover:-translate-y-1 active:scale-[0.98]"
-                  >
-                    5~6학년
-                    {studentGradeNumber && gradeLevelFor(studentGradeNumber) === "5-6" ? (
-                      <span className="ml-2 rounded-full bg-white px-2 py-0.5 align-middle text-sm text-[#244DFF]">내 학년</span>
-                    ) : null}
-                  </button>
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setStep("character")}
+                  className="min-h-16 rounded-[22px] border-2 border-[#FFB15D]/80 bg-[#F0633C] px-12 text-[clamp(20px,2.2vw,30px)] font-black text-white shadow-[0_16px_34px_rgba(240,99,60,0.32)] transition hover:-translate-y-1 active:scale-[0.98]"
+                >
+                  동화 만들기 시작
+                </button>
 
               </span>
             </div>
@@ -1930,10 +1898,10 @@ export function StoryKioskApp() {
             </div>
             {step === "result" ? (
               <div className="flex w-full flex-col gap-3 pb-1">
-                {grade === "5-6" ? (
+                {grade ? (
                   <div className="rounded-2xl border border-[#73DFFF]/25 bg-[#0B1029]/72 p-2.5">
                     <p className="mb-1.5 text-xs font-black text-[#7DFFD4]">
-                      🎬 동화 영상 만들기 (5~6학년)
+                      🎬 동화 영상 만들기
                     </p>
                     <p className="mb-2 text-[11px] font-bold text-[#D4F5FF]/80">
                       &ldquo;영상 미리보기&rdquo;로 재생해 보고 &ldquo;영상 다운로드&rdquo;로 저장하세요. 한 장면을 움직이게 하려면 쪽을 고르고 &ldquo;한 쪽 움직임&rdquo;을 먼저 누르면 돼요(선택).
