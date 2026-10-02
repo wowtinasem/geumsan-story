@@ -9,8 +9,9 @@ services:
     envVars:
       - key: PROVIDER
         value: gemini
+      # 한 학교 학생들이 같은 인터넷 주소로 접속하므로 반 전체 사용량을 감안한다.
       - key: MAX_PER_MIN
-        value: "20"
+        value: "150"
       - key: GEMINI_MODEL
         value: gemini-2.5-flash
       - key: GEMINI_IMAGE_MODEL

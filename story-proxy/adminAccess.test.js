@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createAdminAccessStore, hashPassword, readAdminCredentials } from "./adminAccess.js";
+import { createAdminAccessStore, hashPassword, normalizeStudentInfo, readAdminCredentials } from "./adminAccess.js";
 
 const credentials = {
   adminId: "admin-for-test",
@@ -98,5 +98,63 @@ describe("admin access store", () => {
 
     store.logout(sessionToken);
     assert.equal(store.verify(sessionToken).ok, false);
+  });
+});
+
+describe("password-only admin login", () => {
+  it("accepts the admin password without an id", () => {
+    const store = createAdminAccessStore({ credentials });
+    const result = store.login({ adminId: "", password: "pw-for-test-only", ip: "1.1.1.1" });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.role, "admin");
+    assert.equal(store.verify(result.sessionToken).role, "admin");
+  });
+
+  it("still rejects a wrong password without an id", () => {
+    const store = createAdminAccessStore({ credentials });
+    assert.equal(store.login({ adminId: "", password: "wrong", ip: "1.1.1.1" }).reason, "invalid_credentials");
+  });
+});
+
+describe("student login", () => {
+  const student = { school: "금산초", grade: "4", number: "12", name: "홍길동" };
+
+  it("issues a student session for complete info", () => {
+    const store = createAdminAccessStore({ credentials });
+    const result = store.studentLogin(student);
+
+    assert.equal(result.ok, true);
+    assert.match(result.sessionToken, /^geumsan-student-/);
+    assert.deepEqual(result.student, { school: "금산초", grade: 4, number: 12, name: "홍길동" });
+
+    const verified = store.verify(result.sessionToken);
+    assert.equal(verified.ok, true);
+    assert.equal(verified.role, "student");
+    assert.equal(verified.student.name, "홍길동");
+  });
+
+  it("rejects missing or out-of-range fields", () => {
+    const store = createAdminAccessStore({ credentials });
+
+    assert.equal(store.studentLogin({ ...student, school: " " }).reason, "invalid_student");
+    assert.equal(store.studentLogin({ ...student, name: "" }).reason, "invalid_student");
+    assert.equal(store.studentLogin({ ...student, grade: "7" }).reason, "invalid_student");
+    assert.equal(store.studentLogin({ ...student, number: "0" }).reason, "invalid_student");
+    assert.equal(store.studentLogin({ ...student, number: "삼" }).reason, "invalid_student");
+  });
+
+  it("is closed when the server has no admin credentials (fail-closed)", () => {
+    const store = createAdminAccessStore({ credentials: readAdminCredentials({}) });
+    assert.equal(store.studentLogin(student).reason, "admin_not_configured");
+  });
+
+  it("strips symbols and trims long values", () => {
+    assert.deepEqual(normalizeStudentInfo({ school: "<금산>초등학교!!", grade: 5, number: 3, name: "김하늘<script>" }), {
+      school: "금산초등학교",
+      grade: 5,
+      number: 3,
+      name: "김하늘script"
+    });
   });
 });

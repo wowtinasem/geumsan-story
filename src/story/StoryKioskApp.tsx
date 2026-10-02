@@ -19,8 +19,11 @@ import { buildStoryPdfMetadata } from "./pdfMetadata";
 import {
   clearAdminSession,
   clearRetiredClassSessions,
+  gradeLevelFor,
   readAdminSession,
   requestAdminLogin,
+  requestStudentLogin,
+  sessionLabel,
   requestAdminLogout,
   verifyAdminSession,
   writeAdminSession
@@ -765,7 +768,13 @@ async function generateStoryPdf({
 export function StoryKioskApp() {
   const [step, setStep] = useState<Step>("login");
   const [grade, setGrade] = useState<"3-4" | "5-6">("3-4");
-  const [adminIdInput, setAdminIdInput] = useState("");
+  // 첫 화면 입장 정보. 학교명·학년은 로그아웃해도 남겨 둬서 같은 반 다음 학생이 이어 쓰기 쉽게 한다.
+  const [studentSchool, setStudentSchool] = useState("");
+  const [studentGrade, setStudentGrade] = useState("");
+  const [studentNumber, setStudentNumber] = useState("");
+  const [studentName, setStudentName] = useState("");
+  const [adminMode, setAdminMode] = useState(false);
+  const [studentGradeNumber, setStudentGradeNumber] = useState<number | null>(null);
   const [passwordInput, setPasswordInput] = useState("");
   const [classId, setClassId] = useState("");
   const [classSessionToken, setClassSessionToken] = useState("");
@@ -925,7 +934,10 @@ export function StoryKioskApp() {
     setMusicState("paused");
     setClassId("");
     setClassSessionToken("");
-    setAdminIdInput("");
+    setStudentNumber("");
+    setStudentName("");
+    setStudentGradeNumber(null);
+    setAdminMode(false);
     setPasswordInput("");
     setClassLoginMessage("로그아웃했어요.");
     setImageGenerationMessage("");
@@ -936,18 +948,44 @@ export function StoryKioskApp() {
   async function signInAsAdmin() {
     setClassLoginPending(true);
     setClassLoginMessage("로그인 중이에요.");
-    const result = await requestAdminLogin(adminIdInput, passwordInput);
+    const result = await requestAdminLogin(passwordInput);
     setClassLoginPending(false);
     setPasswordInput("");
 
-    if (!result.ok || !result.adminId || !result.sessionToken) {
+    if (!result.ok || !result.sessionToken) {
       setClassLoginMessage(result.message);
       return;
     }
 
-    writeAdminSession({ adminId: result.adminId, sessionToken: result.sessionToken });
-    setClassId(result.adminId);
+    const session = writeAdminSession({ role: "admin", adminId: result.adminId, sessionToken: result.sessionToken });
+    setClassId(sessionLabel(session));
     setClassSessionToken(result.sessionToken);
+    setStudentGradeNumber(null);
+    setClassLoginMessage(result.message);
+    setStep("attract");
+  }
+
+  async function signInAsStudent() {
+    setClassLoginPending(true);
+    setClassLoginMessage("확인 중이에요.");
+    const result = await requestStudentLogin({
+      school: studentSchool,
+      grade: studentGrade,
+      number: studentNumber,
+      name: studentName
+    });
+    setClassLoginPending(false);
+
+    if (!result.ok || !result.sessionToken || !result.student) {
+      setClassLoginMessage(result.message);
+      return;
+    }
+
+    const session = writeAdminSession({ role: "student", student: result.student, sessionToken: result.sessionToken });
+    setClassId(sessionLabel(session));
+    setClassSessionToken(result.sessionToken);
+    setStudentGradeNumber(result.student.grade);
+    setGrade(gradeLevelFor(result.student.grade));
     setClassLoginMessage(result.message);
     setStep("attract");
   }
@@ -982,8 +1020,12 @@ export function StoryKioskApp() {
         return;
       }
 
-      setClassId(session.adminId);
+      setClassId(sessionLabel(session));
       setClassSessionToken(session.sessionToken);
+      if (session.role === "student" && session.student) {
+        setStudentGradeNumber(session.student.grade);
+        setGrade(gradeLevelFor(session.student.grade));
+      }
       setStep("attract");
     });
 
@@ -1284,64 +1326,140 @@ export function StoryKioskApp() {
         ) : null}
 
         {step === "login" ? (
-          <div className="z-10 grid min-h-0 place-items-center px-3 py-4 text-center">
+          <div className="relative z-10 grid min-h-0 place-items-center overflow-y-auto px-3 py-4 text-center">
             <div className="grid max-h-full w-full max-w-[820px] gap-4 rounded-[34px] border-2 border-[#73DFFF]/35 bg-[#101A38]/82 px-6 py-5 shadow-[0_0_42px_rgba(36,77,255,0.28)] backdrop-blur sm:px-9">
               <div className="grid gap-2">
                 <h1 className="text-balance text-[clamp(24px,3.4vw,44px)] font-black leading-tight text-white drop-shadow-[0_0_28px_rgba(125,232,255,0.35)]">
                   AI와 함께 나만의 동화책 만들기
                 </h1>
-                <p className="mx-auto max-w-[620px] text-balance text-[clamp(14px,1.5vw,19px)] font-bold leading-relaxed text-[#D4F5FF]">
+                <p className="mx-auto max-w-[620px] break-keep text-balance text-[clamp(14px,1.5vw,19px)] font-bold leading-relaxed text-[#D4F5FF]">
                   주인공을 고르고, 사건을 이어 붙이면 세상에 하나뿐인 나만의 동화책이 완성돼요.
                 </p>
               </div>
 
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (!classLoginPending) void signInAsAdmin();
-                }}
-                className="mx-auto grid w-full max-w-[440px] gap-3 rounded-[24px] border border-[#FFB15D]/45 bg-[#0B1029]/80 p-5 text-left"
-              >
-                <p className="text-base font-black text-[#FFE9B0]">관리자 로그인</p>
-
-                <label className="text-sm font-black text-[#D4F5FF]" htmlFor="admin-id">
-                  아이디
-                </label>
-                <input
-                  id="admin-id"
-                  name="username"
-                  autoComplete="username"
-                  value={adminIdInput}
-                  onChange={(event) => setAdminIdInput(event.target.value)}
-                  className="min-h-14 min-w-0 rounded-2xl border-2 border-[#73DFFF]/30 bg-[#151F41] px-5 text-lg font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
-                />
-
-                <label className="text-sm font-black text-[#D4F5FF]" htmlFor="admin-password">
-                  비밀번호
-                </label>
-                <input
-                  id="admin-password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  value={passwordInput}
-                  onChange={(event) => setPasswordInput(event.target.value)}
-                  className="min-h-14 min-w-0 rounded-2xl border-2 border-[#73DFFF]/30 bg-[#151F41] px-5 text-lg font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
-                />
-
-                <button
-                  type="submit"
-                  disabled={classLoginPending}
-                  className="mt-1 min-h-14 rounded-2xl border-2 border-[#FFB15D] bg-[#F0633C] px-6 text-lg font-black text-white shadow-[0_0_24px_rgba(240,99,60,0.26)] active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#6B5C72]"
+              {adminMode ? (
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (!classLoginPending) void signInAsAdmin();
+                  }}
+                  className="mx-auto grid w-full max-w-[440px] gap-3 rounded-[24px] border border-[#FFB15D]/45 bg-[#0B1029]/80 p-5 text-left"
                 >
-                  {classLoginPending ? "확인 중" : "로그인"}
-                </button>
-
-                <p className="min-h-6 text-sm font-black text-[#FFD073]">
-                  {classLoginMessage || "관리자만 사용할 수 있어요."}
-                </p>
-              </form>
+                  <p className="text-base font-black text-[#FFE9B0]">관리자 입장</p>
+                  <label className="grid gap-1 text-sm font-black text-[#D4F5FF]" htmlFor="admin-password">
+                    관리자 비밀번호
+                    <input
+                      id="admin-password"
+                      name="password"
+                      type="password"
+                      inputMode="numeric"
+                      autoComplete="current-password"
+                      autoFocus
+                      value={passwordInput}
+                      onChange={(event) => setPasswordInput(event.target.value)}
+                      className="min-h-14 w-full min-w-0 rounded-2xl border-2 border-[#73DFFF]/30 bg-[#151F41] px-5 text-lg font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={classLoginPending}
+                    className="mt-1 min-h-14 rounded-2xl border-2 border-[#FFB15D] bg-[#F0633C] px-6 text-lg font-black text-white shadow-[0_0_24px_rgba(240,99,60,0.26)] active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#6B5C72]"
+                  >
+                    {classLoginPending ? "확인 중" : "관리자로 입장"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdminMode(false);
+                      setPasswordInput("");
+                      setClassLoginMessage("");
+                    }}
+                    className="min-h-11 rounded-2xl border border-[#73DFFF]/35 px-4 text-sm font-black text-[#DDFBFF] active:scale-[0.98]"
+                  >
+                    학생 입장으로 돌아가기
+                  </button>
+                  <p className="min-h-6 text-sm font-black text-[#FFD073]">{classLoginMessage}</p>
+                </form>
+              ) : (
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (!classLoginPending) void signInAsStudent();
+                  }}
+                  className="mx-auto grid w-full max-w-[520px] gap-3 rounded-[24px] border border-[#FFB15D]/45 bg-[#0B1029]/80 p-5 text-left"
+                >
+                  <p className="text-base font-black text-[#FFE9B0]">나를 소개해요</p>
+                  <label className="grid gap-1 text-sm font-black text-[#D4F5FF]">
+                    학교명
+                    <input
+                      name="school"
+                      autoComplete="off"
+                      placeholder="예: 금산초등학교"
+                      value={studentSchool}
+                      onChange={(event) => setStudentSchool(sanitizeFeatureText(event.target.value).slice(0, 20))}
+                      className="min-h-14 w-full min-w-0 rounded-2xl border-2 border-[#73DFFF]/30 bg-[#151F41] px-5 text-lg font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
+                    />
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="grid gap-1 text-sm font-black text-[#D4F5FF]">
+                      학년
+                      <input
+                        name="grade"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder="예: 4"
+                        value={studentGrade}
+                        onChange={(event) => setStudentGrade(event.target.value.replace(/[^1-6]/g, "").slice(0, 1))}
+                        className="min-h-14 w-full min-w-0 rounded-2xl border-2 border-[#73DFFF]/30 bg-[#151F41] px-5 text-lg font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
+                      />
+                    </label>
+                    <label className="grid gap-1 text-sm font-black text-[#D4F5FF]">
+                      번호
+                      <input
+                        name="number"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder="예: 12"
+                        value={studentNumber}
+                        onChange={(event) => setStudentNumber(event.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+                        className="min-h-14 w-full min-w-0 rounded-2xl border-2 border-[#73DFFF]/30 bg-[#151F41] px-5 text-lg font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
+                      />
+                    </label>
+                  </div>
+                  <label className="grid gap-1 text-sm font-black text-[#D4F5FF]">
+                    이름
+                    <input
+                      name="student-name"
+                      autoComplete="off"
+                      placeholder="예: 홍길동"
+                      value={studentName}
+                      onChange={(event) => setStudentName(sanitizeFeatureText(event.target.value).slice(0, 10))}
+                      className="min-h-14 w-full min-w-0 rounded-2xl border-2 border-[#73DFFF]/30 bg-[#151F41] px-5 text-lg font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={classLoginPending}
+                    className="mt-1 min-h-14 rounded-2xl border-2 border-[#FFB15D] bg-[#F0633C] px-6 text-lg font-black text-white shadow-[0_0_24px_rgba(240,99,60,0.26)] active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#6B5C72]"
+                  >
+                    {classLoginPending ? "확인 중" : "동화 만들기 시작"}
+                  </button>
+                  <p className="min-h-6 text-sm font-black text-[#FFD073]">{classLoginMessage}</p>
+                </form>
+              )}
             </div>
+            {!adminMode ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setAdminMode(true);
+                  setClassLoginMessage("");
+                }}
+                className="absolute bottom-4 right-4 z-20 inline-flex min-h-11 items-center justify-center rounded-2xl border border-[#73DFFF]/35 bg-[#101A38]/86 px-4 text-sm font-black text-[#DDFBFF]/80 active:scale-[0.98]"
+              >
+                관리자
+              </button>
+            ) : null}
           </div>
         ) : step === "attract" ? (
           <div className="relative z-10 grid min-h-0 overflow-hidden">
@@ -1373,7 +1491,9 @@ export function StoryKioskApp() {
                 </span>
 
                 <span className="mt-1 text-[clamp(16px,1.7vw,22px)] font-black text-[#DDFBFF]">
-                  학년을 선택하면 동화 만들기를 시작해요!
+                  {studentGradeNumber
+                    ? `${studentGradeNumber}학년에게 맞는 단계를 표시했어요. 눌러서 시작해요!`
+                    : "학년을 선택하면 동화 만들기를 시작해요!"}
                 </span>
                 <span className="flex flex-wrap items-center justify-center gap-4">
                   <button
@@ -1385,6 +1505,9 @@ export function StoryKioskApp() {
                     className="min-h-16 rounded-[22px] border-2 border-[#FFB15D]/80 bg-[#F0633C] px-10 text-[clamp(20px,2.2vw,30px)] font-black text-white shadow-[0_16px_34px_rgba(240,99,60,0.32)] transition hover:-translate-y-1 active:scale-[0.98]"
                   >
                     3~4학년
+                    {studentGradeNumber && gradeLevelFor(studentGradeNumber) === "3-4" ? (
+                      <span className="ml-2 rounded-full bg-white px-2 py-0.5 align-middle text-sm text-[#F0633C]">내 학년</span>
+                    ) : null}
                   </button>
                   <button
                     type="button"
@@ -1395,6 +1518,9 @@ export function StoryKioskApp() {
                     className="min-h-16 rounded-[22px] border-2 border-[#73DFFF]/80 bg-[#244DFF] px-10 text-[clamp(20px,2.2vw,30px)] font-black text-white shadow-[0_16px_34px_rgba(36,77,255,0.32)] transition hover:-translate-y-1 active:scale-[0.98]"
                   >
                     5~6학년
+                    {studentGradeNumber && gradeLevelFor(studentGradeNumber) === "5-6" ? (
+                      <span className="ml-2 rounded-full bg-white px-2 py-0.5 align-middle text-sm text-[#244DFF]">내 학년</span>
+                    ) : null}
                   </button>
                 </span>
 

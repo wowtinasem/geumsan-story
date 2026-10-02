@@ -641,6 +641,18 @@ app.post("/api/admin-login", (req, res) => {
   return res.status(result.ok ? 200 : 403).json(result);
 });
 
+// 학생 입장: 학교명·학년·번호·이름으로 학생 세션 토큰을 받는다.
+app.post("/api/student-login", (req, res) => {
+  const result = adminAccess.studentLogin({
+    school: req.body?.school,
+    grade: req.body?.grade,
+    number: req.body?.number,
+    name: req.body?.name
+  });
+
+  return res.status(result.ok ? 200 : 400).json(result);
+});
+
 // 새로고침/재방문 시 저장된 토큰이 아직 살아 있는지 확인한다.
 app.post("/api/admin-session", (req, res) => {
   const result = adminAccess.verify(req.body?.sessionToken);
@@ -657,17 +669,17 @@ app.post(["/api/class-login", "/api/class-reset"], (req, res) => {
   return res.status(410).json({
     ok: false,
     reason: "class_access_retired",
-    message: "수업 아이디는 더 이상 사용하지 않아요. 관리자만 로그인할 수 있어요."
+    message: "수업 아이디는 더 이상 사용하지 않아요. 첫 화면에서 학교명·학년·번호·이름을 적어 주세요."
   });
 });
 
-// AI 호출은 서버가 발급한 관리자 토큰이 있어야만 통과한다.
+// AI 호출은 서버가 발급한 토큰(학생 또는 관리자)이 있어야만 통과한다.
 // 브라우저가 만든 토큰이나 localStorage 조작으로는 뚫리지 않는다.
-function denyUnlessAdmin(req, res) {
+function denyUnlessSignedIn(req, res) {
   const access = adminAccess.verify(req.body?.sessionToken);
   if (access.ok) return null;
 
-  res.status(401).json({ error: "admin_auth_required", ...access });
+  res.status(401).json({ error: "auth_required", ...access });
   return access;
 }
 
@@ -676,7 +688,7 @@ app.post("/api/story", async (req, res) => {
     return res.status(429).json({ error: "rate_limited" });
   }
 
-  if (denyUnlessAdmin(req, res)) return undefined;
+  if (denyUnlessSignedIn(req, res)) return undefined;
 
   const provider = selectedProvider();
   if (!provider.key) {
@@ -705,7 +717,7 @@ app.post("/api/image", async (req, res) => {
     return res.status(429).json({ error: "rate_limited" });
   }
 
-  if (denyUnlessAdmin(req, res)) return undefined;
+  if (denyUnlessSignedIn(req, res)) return undefined;
 
   if (!providers.gemini.key) {
     return res.status(503).json({ error: "missing_gemini_api_key" });
@@ -958,7 +970,7 @@ app.post("/api/video/start", async (req, res) => {
   }
 
   // 영상은 Veo 할당량을 크게 쓰므로 관리자 세션을 항상 요구한다.
-  if (denyUnlessAdmin(req, res)) return undefined;
+  if (denyUnlessSignedIn(req, res)) return undefined;
 
   const img = splitDataUrl(req.body?.imageDataUrl);
   if (!img) return res.status(400).json({ message: "그림 데이터가 올바르지 않아요" });
