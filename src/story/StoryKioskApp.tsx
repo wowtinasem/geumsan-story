@@ -822,6 +822,16 @@ export function StoryKioskApp() {
   // 첫 화면 타이틀 영상(16:9)이 화면에 맞춰 줄어든 크기. 로그인 상자도 같은 비율로 키우고 줄인다.
   const titleFrameRef = useRef<HTMLDivElement | null>(null);
   const [titleScale, setTitleScale] = useState(1);
+  // 세로 화면(폭:높이 4:5 이하, 휴대폰·세로 태블릿)은 세로 전용 타이틀 영상과 작은 로그인 상자를 쓴다.
+  const [titlePortrait, setTitlePortrait] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-aspect-ratio: 4/5)");
+    const update = () => setTitlePortrait(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
 
   // 동화 영상 만들기 상태
   const [videoPageIndex, setVideoPageIndex] = useState(2); // 기본: 절정 부근(3쪽)
@@ -1291,7 +1301,7 @@ export function StoryKioskApp() {
       {step === "login" ? (
         <div className="pointer-events-none fixed inset-0 overflow-hidden bg-[#1B1236]" aria-hidden="true">
           {/* 화면과 영상 비율이 달라 생기는 빈 띠를 같은 그림을 흐리게 깔아 채운다 */}
-          <img src="/images/title01-poster.jpg" alt="" className="h-full w-full scale-110 object-cover opacity-60 blur-2xl" />
+          <img src={titlePortrait ? "/images/title-portrait-poster.jpg" : "/images/title01-poster.jpg"} alt="" className="h-full w-full scale-110 object-cover opacity-60 blur-2xl" />
         </div>
       ) : null}
       <div className={(step === "login" ? "hidden " : "") + "pointer-events-none fixed inset-6 rounded-[34px] border-4 border-[#244DFF] shadow-[inset_0_0_0_3px_rgba(255,177,93,0.85),0_0_34px_rgba(36,77,255,0.42)]"} />
@@ -1340,16 +1350,19 @@ export function StoryKioskApp() {
 
         {step === "login" ? (
           <div className="relative z-10 min-h-0">
-            {/* 영상 전체가 보이도록 화면에 맞춰 줄인 16:9 틀 */}
+            {/* 영상 전체가 보이도록 화면에 맞춰 줄인 틀 (가로 16:9 / 세로 9:16) */}
             <div
               ref={titleFrameRef}
-              className="fixed left-1/2 top-1/2 aspect-video w-[min(100vw,calc(100dvh*16/9))] -translate-x-1/2 -translate-y-1/2"
+              className={[
+                "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
+                titlePortrait ? "aspect-[9/16] w-[min(100vw,calc(100dvh*9/16))]" : "aspect-video w-[min(100vw,calc(100dvh*16/9))]"
+              ].join(" ")}
             >
               <video
-                key="title-video"
+                key={titlePortrait ? "title-video-portrait" : "title-video"}
                 className="pointer-events-none absolute inset-0 h-full w-full object-contain"
-                src="/videos/title01.mp4"
-                poster="/images/title01-poster.jpg"
+                src={titlePortrait ? "/videos/title-portrait.mp4" : "/videos/title01.mp4"}
+                poster={titlePortrait ? "/images/title-portrait-poster.jpg" : "/images/title01-poster.jpg"}
                 autoPlay
                 muted
                 playsInline
@@ -1358,8 +1371,12 @@ export function StoryKioskApp() {
               />
             {/* 타이틀 영상의 가운데 빈 하늘(제목 아래, 양옆 인물 사이)에 들어가는 로그인 상자 */}
             <div
-              className="absolute left-1/2 top-[57%] z-10 w-[400px] max-w-[calc(100vw-32px)]"
-              style={{ transform: `translate(-50%, -50%) scale(${titleScale})` }}
+              className={
+                titlePortrait
+                  ? "absolute left-1/2 top-[29.5%] z-10 w-[90%] max-w-[460px] -translate-x-1/2"
+                  : "absolute left-1/2 top-[57%] z-10 w-[400px] max-w-[calc(100vw-32px)]"
+              }
+              style={titlePortrait ? undefined : { transform: `translate(-50%, -50%) scale(${titleScale})` }}
             >
               {adminMode ? (
                 <form
@@ -1410,13 +1427,13 @@ export function StoryKioskApp() {
                   }}
                   className="grid w-full gap-2 rounded-[20px] border border-[#FFB15D]/45 bg-[#0B1029]/75 px-4 py-3 text-left shadow-[0_14px_36px_rgba(0,0,0,0.45)] backdrop-blur-md"
                 >
-                  <p className="text-sm font-black text-[#FFE9B0]">나를 소개해요</p>
+                  {titlePortrait ? null : <p className="text-sm font-black text-[#FFE9B0]">나를 소개해요</p>}
                   <label className="grid gap-0.5 text-xs font-black text-[#D4F5FF]">
-                    학교명
+                    <span className={titlePortrait ? "sr-only" : ""}>학교명</span>
                     <input
                       name="school"
                       autoComplete="off"
-                      placeholder="예: 금산초등학교"
+                      placeholder={titlePortrait ? "학교명 (예: 금산초등학교)" : "예: 금산초등학교"}
                       value={studentSchool}
                       onChange={(event) => setStudentSchool(sanitizeFeatureText(event.target.value).slice(0, 20))}
                       className="min-h-10 w-full min-w-0 rounded-xl border-2 border-[#73DFFF]/30 bg-[#151F41]/90 px-3 text-base font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
@@ -1424,35 +1441,35 @@ export function StoryKioskApp() {
                   </label>
                   <div className="grid grid-cols-[1fr_1fr_2fr] gap-2">
                     <label className="grid gap-0.5 text-xs font-black text-[#D4F5FF]">
-                      학년
+                      <span className={titlePortrait ? "sr-only" : ""}>학년</span>
                       <input
                         name="grade"
                         inputMode="numeric"
                         autoComplete="off"
-                        placeholder="4"
+                        placeholder={titlePortrait ? "학년" : "4"}
                         value={studentGrade}
                         onChange={(event) => setStudentGrade(event.target.value.replace(/[^1-6]/g, "").slice(0, 1))}
                         className="min-h-10 w-full min-w-0 rounded-xl border-2 border-[#73DFFF]/30 bg-[#151F41]/90 px-3 text-base font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
                       />
                     </label>
                     <label className="grid gap-0.5 text-xs font-black text-[#D4F5FF]">
-                      번호
+                      <span className={titlePortrait ? "sr-only" : ""}>번호</span>
                       <input
                         name="number"
                         inputMode="numeric"
                         autoComplete="off"
-                        placeholder="12"
+                        placeholder={titlePortrait ? "번호" : "12"}
                         value={studentNumber}
                         onChange={(event) => setStudentNumber(event.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
                         className="min-h-10 w-full min-w-0 rounded-xl border-2 border-[#73DFFF]/30 bg-[#151F41]/90 px-3 text-base font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
                       />
                     </label>
                     <label className="grid gap-0.5 text-xs font-black text-[#D4F5FF]">
-                      이름
+                      <span className={titlePortrait ? "sr-only" : ""}>이름</span>
                       <input
                         name="student-name"
                         autoComplete="off"
-                        placeholder="홍길동"
+                        placeholder={titlePortrait ? "이름" : "홍길동"}
                         value={studentName}
                         onChange={(event) => setStudentName(sanitizeFeatureText(event.target.value).slice(0, 10))}
                         className="min-h-10 w-full min-w-0 rounded-xl border-2 border-[#73DFFF]/30 bg-[#151F41]/90 px-3 text-base font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
