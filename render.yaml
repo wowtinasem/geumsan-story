@@ -19,6 +19,9 @@ services:
         value: veo-3.1-fast-generate-preview
       - key: GEMINI_THINKING_BUDGET
         value: "0"
+      # 이 프록시를 부를 수 있는 앱 주소 (끝 슬래시 없이)
+      - key: CORS_ORIGIN
+        value: https://geumsan-story.vercel.app
       # 비밀값은 저장소에 두지 않는다. Render 대시보드에서 직접 입력한다.
       - key: GEMINI_API_KEY
         sync: false
