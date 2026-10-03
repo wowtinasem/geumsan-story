@@ -23,6 +23,7 @@ import {
   requestAdminLogin,
   requestStudentLogin,
   sessionLabel,
+  type AdminSession,
   requestAdminLogout,
   verifyAdminSession,
   writeAdminSession
@@ -430,6 +431,14 @@ function GeumsamiNarrator({ className = "" }: { className?: string }) {
   );
 }
 
+// PDF 표지 아래 "작가 : 학교명, 이름". 관리자로 만든 동화는 "작가 : 관리자".
+function coverAuthorLine(session: Pick<AdminSession, "role" | "student"> | null) {
+  if (session?.role === "student" && session.student) {
+    return `작가 : ${session.student.school}, ${session.student.name}`;
+  }
+  return "작가 : 관리자";
+}
+
 function MiniPlaceArt({ place }: { place: PlaceChoice }) {
   const scene = place.sceneKey;
 
@@ -674,12 +683,14 @@ function wrapCanvasText(ctx: CanvasRenderingContext2D, text: string, maxWidth: n
 // canvas의 fillText는 한글을 시스템 폰트로 렌더하므로 별도 폰트 임베딩이 필요 없다.
 async function generateStoryPdf({
   title,
+  author,
   footer,
   pages,
   images,
   filename
 }: {
   title: string;
+  author: string;
   footer: string;
   pages: string[];
   images: Record<number, string>;
@@ -718,45 +729,84 @@ async function generateStoryPdf({
     pageCount += 1;
   };
 
-  // 표지
+  // 표지: 위 = 수업 이름, 가운데 = 동화 제목(큰 글씨 한 줄), 아래 = 작가
   const cover = ctx.createLinearGradient(0, 0, W, H);
   cover.addColorStop(0, "#101a38");
   cover.addColorStop(1, "#1a244c");
   ctx.fillStyle = cover;
   ctx.fillRect(0, 0, W, H);
+
+  // 안쪽 테두리 (책 표지 느낌)
+  ctx.strokeStyle = "rgba(255, 208, 115, 0.55)";
+  ctx.lineWidth = 4;
+  roundRectPath(ctx, 60, 60, W - 120, H - 120, 36);
+  ctx.stroke();
+
   ctx.textAlign = "center";
-  ctx.textBaseline = "top";
+  ctx.textBaseline = "middle";
 
-  const coverHeading = "금산교육지원청 찾아가는 AI동화 수업";
-  const headingFont = "800 56px Pretendard, sans-serif";
-  const titleFont = "900 86px Pretendard, sans-serif";
-  const headingH = 66;
-  const gapHeadingToTitle = 54;
-  const titleLineH = 106;
-
-  ctx.font = titleFont;
-  const titleLines = wrapCanvasText(ctx, title, W - 300);
-  const blockH = headingH + gapHeadingToTitle + titleLines.length * titleLineH;
-  let coverY = H / 2 - blockH / 2;
-
-  // 1줄: 수업 제목
-  ctx.fillStyle = "#FFD073";
-  ctx.font = headingFont;
-  ctx.fillText(coverHeading, W / 2, coverY);
-  coverY += headingH + gapHeadingToTitle;
-
-  // 2줄: 동화 제목
-  ctx.fillStyle = "#ffffff";
-  ctx.font = titleFont;
-  for (const line of titleLines) {
-    ctx.fillText(line, W / 2, coverY);
-    coverY += titleLineH;
-  }
-
-  // 하단: 식별용 정보(배경 · 아이디)
+  // 위: 금산교육지원청 "찾아가는 AI동화 수업"
   ctx.fillStyle = "#dff9ff";
-  ctx.font = "700 34px Pretendard, sans-serif";
-  ctx.fillText(footer, W / 2, H - 96);
+  ctx.font = "700 40px Pretendard, sans-serif";
+  ctx.fillText("금산교육지원청", W / 2, 230);
+  ctx.fillStyle = "#FFD073";
+  ctx.font = "800 60px Pretendard, sans-serif";
+  ctx.fillText("\u201C찾아가는 AI동화 수업\u201D", W / 2, 305);
+
+  // 장식 구분선
+  const drawDivider = (y: number) => {
+    ctx.strokeStyle = "rgba(255, 208, 115, 0.7)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - 260, y);
+    ctx.lineTo(W / 2 - 24, y);
+    ctx.moveTo(W / 2 + 24, y);
+    ctx.lineTo(W / 2 + 260, y);
+    ctx.stroke();
+    ctx.fillStyle = "#FFD073";
+    ctx.beginPath();
+    ctx.moveTo(W / 2, y - 12);
+    ctx.lineTo(W / 2 + 12, y);
+    ctx.lineTo(W / 2, y + 12);
+    ctx.lineTo(W / 2 - 12, y);
+    ctx.closePath();
+    ctx.fill();
+  };
+  drawDivider(400);
+
+  // 가운데: 동화 제목 — 한 줄에 들어가도록 글자 크기를 줄여 맞춘다
+  const titleMaxW = W - 300;
+  let titleSize = 120;
+  ctx.font = `900 ${titleSize}px Pretendard, sans-serif`;
+  while (titleSize > 56 && ctx.measureText(title).width > titleMaxW) {
+    titleSize -= 4;
+    ctx.font = `900 ${titleSize}px Pretendard, sans-serif`;
+  }
+  ctx.fillStyle = "#ffffff";
+  ctx.shadowColor = "rgba(125, 232, 255, 0.35)";
+  ctx.shadowBlur = 24;
+  if (ctx.measureText(title).width <= titleMaxW) {
+    ctx.fillText(title, W / 2, 610);
+  } else {
+    // 아주 긴 제목만 두 줄
+    const lines = wrapCanvasText(ctx, title, titleMaxW).slice(0, 2);
+    lines.forEach((line, i) => ctx.fillText(line, W / 2, 610 + (i - (lines.length - 1) / 2) * titleSize * 1.2));
+  }
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+
+  drawDivider(820);
+
+  // 아래: 작가 : 학교명, 이름
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "800 52px Pretendard, sans-serif";
+  ctx.fillText(author, W / 2, 920);
+
+  // 맨 아래 작은 식별 정보(배경 장소)
+  ctx.fillStyle = "rgba(223, 249, 255, 0.6)";
+  ctx.font = "600 28px Pretendard, sans-serif";
+  ctx.fillText(footer, W / 2, H - 120);
+  ctx.textBaseline = "top";
   commitPage();
 
   // 본문 6쪽
@@ -823,6 +873,7 @@ export function StoryKioskApp() {
   const [passwordInput, setPasswordInput] = useState("");
   const [classId, setClassId] = useState("");
   const [classSessionToken, setClassSessionToken] = useState("");
+  const [coverAuthor, setCoverAuthor] = useState("작가 : 관리자");
   const [classLoginMessage, setClassLoginMessage] = useState("");
   const [classLoginPending, setClassLoginPending] = useState(false);
   const [character, setCharacter] = useState<CharacterChoice>(defaultCharacter);
@@ -1016,6 +1067,7 @@ export function StoryKioskApp() {
 
     const session = writeAdminSession({ role: "admin", adminId: result.adminId, sessionToken: result.sessionToken });
     setClassId(sessionLabel(session));
+    setCoverAuthor(coverAuthorLine(session));
     setClassSessionToken(result.sessionToken);
     setClassLoginMessage(result.message);
     setStep("attract");
@@ -1039,6 +1091,7 @@ export function StoryKioskApp() {
 
     const session = writeAdminSession({ role: "student", student: result.student, sessionToken: result.sessionToken });
     setClassId(sessionLabel(session));
+    setCoverAuthor(coverAuthorLine(session));
     setClassSessionToken(result.sessionToken);
     setClassLoginMessage(result.message);
     setStep("attract");
@@ -1075,6 +1128,7 @@ export function StoryKioskApp() {
       }
 
       setClassId(sessionLabel(session));
+      setCoverAuthor(coverAuthorLine(session));
       setClassSessionToken(session.sessionToken);
       setStep("attract");
     });
@@ -1190,7 +1244,8 @@ export function StoryKioskApp() {
     const imagesForPrint = printableImagesReady ? sceneImages : await generatePrintableImages();
     await generateStoryPdf({
       title: pdfMetadata.title,
-      footer: `${place.name} · ${classId || "연습 아이디"}`,
+      author: coverAuthor,
+      footer: `배경: ${place.name}`,
       pages: story.pages,
       images: imagesForPrint,
       filename: pdfMetadata.filename
