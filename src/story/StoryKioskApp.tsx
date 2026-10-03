@@ -173,7 +173,7 @@ function formatSavedStoryDate(value: string) {
 function mascotGuideForStep(step: Step, characterName: string) {
   switch (step) {
     case "character":
-      return "안녕! 나는 금산 인삼 요정 삼이야. 1단계: 주인공을 골라주세요.";
+      return "안녕! 나는 금산 인삼 요정 금삼이야. 1단계: 주인공을 골라주세요.";
     case "trait":
       return `2단계: ${characterName}의 성격을 선택해주세요.`;
     case "place":
@@ -181,7 +181,7 @@ function mascotGuideForStep(step: Step, characterName: string) {
     case "events":
       return "4단계: 기승전결 사건을 차례대로 선택해주세요.";
     case "loading":
-      return "삼이가 멋진 동화를 만들고 있어요. 잠시만 기다려주세요.";
+      return "금삼이가 멋진 동화를 만들고 있어요. 잠시만 기다려주세요.";
     case "result":
       return "";
     default:
@@ -366,21 +366,55 @@ function KioskArtwork({
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-[#090D20]/50 via-transparent to-[#090D20]/5" />
       {guideText ? (
-        <div className="absolute bottom-16 left-7 flex max-w-[calc(100%-56px)] items-end gap-3">
-          <img
-            src="/images/ginseng-mascot-transparent.png"
-            alt=""
-            aria-hidden="true"
-            className="story-mascot-float h-28 w-28 shrink-0 object-contain drop-shadow-[0_18px_24px_rgba(0,0,0,0.3)] sm:h-32 sm:w-32"
-            draggable={false}
-          />
-          <div className="relative mb-7 max-w-[360px] rounded-2xl border-2 border-[#FFB15D]/75 bg-white px-5 py-4 text-left text-base font-black leading-snug text-[#24304B] shadow-[0_14px_28px_rgba(0,0,0,0.24)]">
+        <div className="absolute bottom-6 left-5 flex max-w-[calc(100%-40px)] items-end gap-2">
+          <GeumsamiNarrator className="h-[clamp(150px,24vh,240px)] w-auto shrink-0 object-contain drop-shadow-[0_18px_24px_rgba(0,0,0,0.35)]" />
+          <div className="relative mb-[clamp(60px,10vh,110px)] max-w-[460px] break-keep rounded-2xl border-2 border-[#FFB15D]/75 bg-white px-5 py-4 text-left text-[clamp(18px,1.55vw,24px)] font-black leading-snug text-[#24304B] shadow-[0_14px_28px_rgba(0,0,0,0.24)]">
             <span className="absolute -left-3 bottom-5 h-5 w-5 rotate-45 border-b-2 border-l-2 border-[#FFB15D]/75 bg-white" />
             {guideText}
           </div>
         </div>
       ) : null}
     </div>
+  );
+}
+
+// 동화의 메인 캐릭터이자 설명하는 나레이터 '금삼이'.
+// 배경이 투명한 WebM 영상으로 움직인다. iPhone·iPad(Safari)는 투명 영상을 못 그려서 정지 그림을 쓴다.
+function GeumsamiNarrator({ className = "" }: { className?: string }) {
+  const [useStill, setUseStill] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // React는 muted 속성을 처음에 확실히 넣어 주지 않아 자동 재생이 막힐 때가 있다. 직접 켜고 재생한다.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = true;
+    void video.play().catch(() => undefined);
+  }, [useStill]);
+
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    const appleTouch = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const safari = /^((?!chrome|chromium|crios|fxios|edg|android).)*safari/i.test(ua);
+    setUseStill(appleTouch || safari);
+  }, []);
+
+  if (useStill) {
+    return <img src="/images/geumsami.png" alt="" aria-hidden="true" className={className} draggable={false} />;
+  }
+  return (
+    <video
+      ref={videoRef}
+      className={className}
+      src="/videos/geumsami.webm"
+      poster="/images/geumsami.png"
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="auto"
+      aria-hidden="true"
+    />
   );
 }
 
@@ -1327,7 +1361,7 @@ export function StoryKioskApp() {
           <header className="z-10 mx-auto flex w-full max-w-[1560px] flex-wrap items-center justify-between gap-3 pb-2">
             <div className="flex items-center gap-4">
               <img
-                src="/images/ginseng-mascot-transparent.png"
+                src="/images/geumsami.png"
                 alt=""
                 aria-hidden="true"
                 className="h-16 w-16 shrink-0 object-contain drop-shadow-[0_8px_14px_rgba(0,0,0,0.28)]"
@@ -1532,18 +1566,17 @@ export function StoryKioskApp() {
                   동화 만들기
                 </span>
 
-                <span aria-hidden="true" className="story-mascot-float relative mt-1 block h-[clamp(120px,14vw,178px)] w-[clamp(120px,14vw,178px)]">
-                  <span className="absolute inset-x-[18%] bottom-1 h-8 rounded-full bg-[#050914]/55 blur-xl" />
-                  <img
-                    src="/images/ginseng-mascot-transparent.png"
-                    alt=""
-                    className="relative h-full w-full object-contain drop-shadow-[0_24px_34px_rgba(0,0,0,0.36)]"
-                    draggable={false}
-                  />
-                </span>
-
-                <span className="mt-1 text-[clamp(16px,1.7vw,22px)] font-black text-[#DDFBFF]">
-                  버튼을 누르면 동화 만들기를 시작해요!
+                <span className="mt-1 flex flex-col-reverse items-center justify-center gap-1 sm:flex-row sm:gap-2">
+                  <span className="relative block shrink-0">
+                    <span className="absolute inset-x-[18%] bottom-1 h-8 rounded-full bg-[#050914]/55 blur-xl" />
+                    <GeumsamiNarrator className="relative h-[clamp(150px,26vh,280px)] w-auto object-contain drop-shadow-[0_24px_34px_rgba(0,0,0,0.36)]" />
+                  </span>
+                  <span className="relative max-w-[min(440px,88vw)] break-keep rounded-2xl sm:max-w-[min(440px,52vw)] border-2 border-[#FFB15D]/75 bg-white px-5 py-4 text-left text-[clamp(17px,1.6vw,24px)] font-black leading-snug text-[#24304B] shadow-[0_14px_28px_rgba(0,0,0,0.24)]">
+                    <span className="absolute -bottom-3 left-1/2 h-5 w-5 -translate-x-1/2 rotate-[-45deg] border-b-2 border-l-2 border-[#FFB15D]/75 bg-white sm:-left-3 sm:bottom-auto sm:top-1/2 sm:translate-x-0 sm:-translate-y-1/2 sm:rotate-45" />
+                    안녕! 나는 금산 인삼 요정 금삼이야.
+                    <br />
+                    버튼을 누르면 동화 만들기를 시작해요!
+                  </span>
                 </span>
                 <button
                   type="button"
