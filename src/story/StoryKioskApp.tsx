@@ -1304,7 +1304,23 @@ export function StoryKioskApp() {
           <img src={titlePortrait ? "/images/title-portrait-poster.jpg" : "/images/title01-poster.jpg"} alt="" className="h-full w-full scale-110 object-cover opacity-60 blur-2xl" />
         </div>
       ) : null}
-      <div className={(step === "login" ? "hidden " : "") + "pointer-events-none fixed inset-6 rounded-[34px] border-4 border-[#244DFF] shadow-[inset_0_0_0_3px_rgba(255,177,93,0.85),0_0_34px_rgba(36,77,255,0.42)]"} />
+      {step === "attract" ? (
+        <div className="pointer-events-none fixed inset-0 overflow-hidden bg-[#0E0A24]" aria-hidden="true">
+          {/* 시작 화면 배경: 타이틀 그림을 어둡게 낮춘 것 (글자가 잘 보이도록) */}
+          {titlePortrait ? (
+            <>
+              {/* 세로 화면: 그림 전체가 보이게 폭에 맞추고, 남는 위아래는 같은 그림을 흐리게 */}
+              <img src="/images/attract-bg-portrait.jpg" alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-70 blur-2xl" />
+              <img src="/images/attract-bg-portrait.jpg" alt="" className="absolute inset-0 h-full w-full object-contain" />
+            </>
+          ) : (
+            <img src="/images/attract-bg.jpg" alt="" className="h-full w-full object-cover" />
+          )}
+          {/* 글자 뒤 가운데를 조금 더 어둡게 해서 배경 그림 속 제목과 겹쳐도 잘 읽히게 */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_42%,rgba(8,6,24,0.62),rgba(8,6,24,0.25)_45%,transparent_70%)]" />
+        </div>
+      ) : null}
+      <div className={(step === "login" || step === "attract" ? "hidden " : "") + "pointer-events-none fixed inset-6 rounded-[34px] border-4 border-[#244DFF] shadow-[inset_0_0_0_3px_rgba(255,177,93,0.85),0_0_34px_rgba(36,77,255,0.42)]"} />
 
       <section className={["relative grid h-full min-h-0 overflow-hidden p-5 sm:p-6 lg:p-8", step === "login" || step === "attract" ? "grid-rows-1" : "grid-rows-[auto_minmax(0,1fr)]"].join(" ")}>
         {step !== "login" && step !== "attract" ? (
@@ -1507,7 +1523,7 @@ export function StoryKioskApp() {
                 <span className="pointer-events-none absolute bottom-[22%] right-[20%] h-4 w-4 rotate-45 bg-[#7DFFD4] shadow-[0_0_22px_rgba(125,255,212,0.68)]" />
 
                 <span className="flex flex-col items-center gap-2">
-                  <span className="text-[clamp(26px,3.4vw,52px)] font-black leading-tight text-white drop-shadow-[0_0_20px_rgba(125,232,255,0.28)]">
+                  <span className="break-keep text-balance text-[clamp(26px,3.4vw,52px)] font-black leading-tight text-white drop-shadow-[0_0_20px_rgba(125,232,255,0.28)]">
                     AI와 함께 만드는 나만의 동화책
                   </span>
                 </span>
