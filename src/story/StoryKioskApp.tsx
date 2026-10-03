@@ -1573,9 +1573,11 @@ export function StoryKioskApp() {
                   </span>
                   <span className="relative max-w-[min(440px,88vw)] break-keep rounded-2xl sm:max-w-[min(440px,52vw)] border-2 border-[#FFB15D]/75 bg-white px-5 py-4 text-left text-[clamp(17px,1.6vw,24px)] font-black leading-snug text-[#24304B] shadow-[0_14px_28px_rgba(0,0,0,0.24)]">
                     <span className="absolute -bottom-3 left-1/2 h-5 w-5 -translate-x-1/2 rotate-[-45deg] border-b-2 border-l-2 border-[#FFB15D]/75 bg-white sm:-left-3 sm:bottom-auto sm:top-1/2 sm:translate-x-0 sm:-translate-y-1/2 sm:rotate-45" />
-                    안녕! 나는 금산 인삼 요정 금삼이야.
+                    안녕! 내 이름은 금삼이야.
                     <br />
-                    버튼을 누르면 동화 만들기를 시작해요!
+                    나와 함께 동화 만들기를 해 보자.
+                    <br />
+                    준비되었으면 버튼을 눌러 줘!
                   </span>
                 </span>
                 <button
