@@ -389,7 +389,19 @@ function GeumsamiNarrator({ className = "" }: { className?: string }) {
     const video = videoRef.current;
     if (!video) return;
     video.muted = true;
-    void video.play().catch(() => undefined);
+    const tryPlay = () => {
+      if (video.paused) void video.play().catch(() => undefined);
+    };
+    tryPlay();
+    // 브라우저가 자동 재생을 한 번 막아도, 준비되었을 때나 화면을 처음 누를 때 다시 재생한다.
+    video.addEventListener("canplay", tryPlay);
+    window.addEventListener("pointerdown", tryPlay, { once: true });
+    document.addEventListener("visibilitychange", tryPlay);
+    return () => {
+      video.removeEventListener("canplay", tryPlay);
+      window.removeEventListener("pointerdown", tryPlay);
+      document.removeEventListener("visibilitychange", tryPlay);
+    };
   }, [useStill]);
 
   useEffect(() => {
