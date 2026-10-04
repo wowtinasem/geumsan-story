@@ -1,4 +1,5 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { containsBlockedWord } from "./contentFilter.js";
 
 // 접근 방식 두 가지.
 // 1) 학생: 학교명·학년·반·번호·이름을 적으면 서버가 학생 세션 토큰을 발급한다(비밀번호 없음).
@@ -175,6 +176,14 @@ export function createAdminAccessStore({
         ok: false,
         reason: "invalid_student",
         message: "학교명, 학년(1~6), 반(1~20), 번호(1~99), 이름을 모두 바르게 적어 주세요."
+      };
+    }
+
+    if (containsBlockedWord(student.school) || containsBlockedWord(student.name)) {
+      return {
+        ok: false,
+        reason: "unsafe_input",
+        message: "학교명이나 이름에 쓸 수 없는 말이 있어요. 바르게 적어 주세요."
       };
     }
 

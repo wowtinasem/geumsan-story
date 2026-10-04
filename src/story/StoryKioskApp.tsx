@@ -36,6 +36,7 @@ import { isGeneratedSceneImage } from "./imageGeneration";
 import { checkProxyHealth, generateSceneImage, generateStory, localStory } from "./storyEngine";
 import { buildStoryVideo } from "./storyVideo";
 import { clearWork, loadWork, pruneOldWorks, saveWork } from "./workStore";
+import { containsBlockedWord } from "./contentFilter";
 import { artStyles, defaultArtStyle, type ArtStyleId } from "./artStyles";
 import { detectDevice, deviceNames, folderSteps, padletUploadSteps, padletUrl } from "./downloadHelp";
 import {
@@ -160,7 +161,6 @@ const heroFeatures: { id: string; label: string; desc: string }[] = [
   { id: "backpack", label: "가방", desc: "a small backpack" }
 ];
 const defaultHairColor = hairColors[0];
-const blockedCustomWords = ["바보", "죽", "살인", "폭력", "피", "혐오", "욕", "나쁜말"];
 
 function sanitizeCustomChoice(value: string) {
   return value
@@ -190,8 +190,7 @@ function sanitizeFeatureText(value: string) {
 }
 
 function isBlockedCustomChoice(value: string) {
-  const normalized = value.replace(/\s+/g, "").toLowerCase();
-  return blockedCustomWords.some((word) => normalized.includes(word));
+  return containsBlockedWord(value);
 }
 
 function mascotGuideForStep(step: Step, characterName: string) {
@@ -1376,6 +1375,11 @@ export function StoryKioskApp() {
         setRestartPhase("confirm");
         return;
       }
+      if ((error as { code?: string })?.code === "unsafe_input") {
+        setStep("events");
+        setCustomError((error as Error).message);
+        return;
+      }
       throw error;
     }
     setStory(result);
@@ -1544,7 +1548,12 @@ export function StoryKioskApp() {
   }
 
   function move(delta: number) {
+    if (delta > 0 && step === "character" && isBlockedCustomChoice(heroName)) {
+      setCustomError("주인공 이름에 쓸 수 없는 말이 있어요. 다른 이름을 써 주세요.");
+      return;
+    }
     const next = stepOrder[currentStepIndex + delta];
+    setCustomError("");
     if (next) setStep(next);
   }
 
@@ -2119,9 +2128,10 @@ export function StoryKioskApp() {
                         value={heroName}
                         onChange={(event) => setHeroName(sanitizeTypingChoice(event.target.value))}
                         maxLength={12}
-                        placeholder="예: 가야"
+                        placeholder="예: 가야 (친구 이름 말고 상상한 이름을 써요)"
                         className="min-h-12 w-full rounded-xl border border-[#73DFFF]/25 bg-[#151F41] px-4 text-base font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
                       />
+                      {customError && step === "character" ? <p className="text-xs font-black text-[#FFD073]">{customError}</p> : null}
                     </div>
 
                     <div className="grid gap-2">

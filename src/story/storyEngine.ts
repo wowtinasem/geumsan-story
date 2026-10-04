@@ -143,6 +143,15 @@ export async function generateStory(
       throw err;
     }
 
+    if (response.status === 400) {
+      const info = (await response.json().catch(() => ({}))) as { message?: string; error?: string };
+      if (info.error === "unsafe_input") {
+        const err = new Error(info.message || "쓸 수 없는 말이 들어 있어요.");
+        (err as Error & { code?: string }).code = "unsafe_input";
+        throw err;
+      }
+    }
+
     if (!response.ok) {
       throw new Error("story proxy failed");
     }
@@ -159,7 +168,7 @@ export async function generateStory(
     };
   } catch (error) {
     // 사용 횟수 초과는 폴백하지 않고 호출부(createStory)로 전달
-    if ((error as { code?: string })?.code === "usage_limit") throw error;
+    if ((error as { code?: string })?.code === "usage_limit" || (error as { code?: string })?.code === "unsafe_input") throw error;
     return localStory(selection, grade);
   }
 }

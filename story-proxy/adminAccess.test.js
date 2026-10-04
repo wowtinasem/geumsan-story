@@ -211,3 +211,13 @@ describe("isMiddleSchool", () => {
     for (const school of ["금산중앙초", "금산중앙초등학교", "금산초", "", undefined]) assert.equal(isMiddleSchool(school), false, String(school));
   });
 });
+
+describe("student login content filter", () => {
+  it("rejects swear words in the name or school", () => {
+    const store = createAdminAccessStore({ credentials });
+    const ok = { school: "금산초", grade: "4", classNo: "1", number: "1", name: "하늘" };
+    assert.equal(store.studentLogin(ok).ok, true);
+    assert.equal(store.studentLogin({ ...ok, name: "병신" }).reason, "unsafe_input");
+    assert.equal(store.studentLogin({ ...ok, school: "씨발초" }).reason, "unsafe_input");
+  });
+});

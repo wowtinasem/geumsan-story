@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import { createAdminAccessStore, isMiddleSchool } from "./adminAccess.js";
+import { selectionHasBlockedWord } from "./contentFilter.js";
 import { buildGeminiImageRequest, extractGeminiImageResult } from "./geminiImage.js";
 import { toProviderErrorResponse } from "./providerErrors.js";
 
@@ -575,6 +576,7 @@ function buildImagePrompt(selection, scene, pageIndex) {
     `ART STYLE (most important, applies to the whole image): ${artStylePrompts[selection.artStyle] || artStylePrompts.anim3d}.`,
     "Create one original children's storybook scene illustration in exactly that art style.",
     "Output format: exactly ONE single continuous full-bleed illustration showing ONE moment, filling the whole canvas edge to edge. Never a comic page, never panels, grid, collage, split screen, diptych, triptych, storyboard, multiple frames, borders, gutters, or dividing lines; never repeat the same picture twice in one image; never a character turnaround or model sheet. The protagonist appears exactly once in the image.",
+    "Child safety: this is for elementary school students. No weapons, no blood or injuries, no scary monsters or horror, no violence, no smoking or alcohol, no revealing or swimwear clothing; keep every person fully and modestly dressed and every scene gentle and safe.",
     "Content rules: family friendly, no logos, no copyrighted characters, no imitation of an existing studio, artist, or franchise. Never write any words, letters, Korean characters, captions, or the story sentence inside the image.",
     "This request makes the picture for one page only (other pages are drawn separately). Maintain strict visual continuity with the other pages of the same book.",
     `Character bible: ${characterBible}. This is the single named protagonist${speciesNote}. Keep the exact same face shape, hairstyle, eye color, body proportions, outfit, accessories, colors, and facial features on every page.`,
@@ -655,6 +657,14 @@ async function fetchJson(url, options, timeoutMs = 8000) {
   }
 }
 
+// 초등학생 수업용: Google 안전 필터를 분명히 켠다 (성적인 내용은 가장 엄격하게)
+const geminiSafetySettings = [
+  { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+  { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+  { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_LOW_AND_ABOVE" },
+  { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }
+];
+
 async function callGemini(provider, prompt) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${provider.model}:generateContent?key=${provider.key}`;
   const generationConfig = {
@@ -677,6 +687,7 @@ async function callGemini(provider, prompt) {
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: [{ role: "user", parts: [{ text: prompt }] }],
+      safetySettings: geminiSafetySettings,
       generationConfig
     })
   }, 30000);
@@ -996,6 +1007,9 @@ app.post("/api/story", async (req, res) => {
   if (!validateSelection(selection)) {
     return res.status(400).json({ error: "invalid_selection" });
   }
+  if (selectionHasBlockedWord(selection)) {
+    return res.status(400).json({ error: "unsafe_input", message: "쓸 수 없는 말이 들어 있어요. 주인공 이름이나 직접 쓴 내용을 바꿔 주세요." });
+  }
 
   const key = usageKey(req.access);
   if (key && usageOf(key).stories >= storyLimitOf(usageOf(key))) {
@@ -1055,6 +1069,9 @@ app.post("/api/image", async (req, res) => {
 
   if (!validateSelection(selection) || typeof scene !== "string" || !scene.trim()) {
     return res.status(400).json({ error: "invalid_image_request" });
+  }
+  if (selectionHasBlockedWord(selection)) {
+    return res.status(400).json({ error: "unsafe_input", message: "쓸 수 없는 말이 들어 있어요. 주인공 이름이나 직접 쓴 내용을 바꿔 주세요." });
   }
 
   const key = usageKey(req.access);
