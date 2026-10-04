@@ -1721,6 +1721,16 @@ export function StoryKioskApp() {
                   {classId}
                 </div>
               ) : null}
+              {padletUrl ? (
+                <a
+                href={padletUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border-2 border-[#FFB15D]/80 bg-[#7B3FE4] px-4 text-sm font-black text-white shadow-[0_0_18px_rgba(123,63,228,0.35)] active:scale-[0.98]"
+              >
+                📌 패들렛<span className="hidden xl:inline"> 바로가기</span>
+              </a>
+              ) : null}
               <StatusPill health={health} />
             </div>
           </header>
@@ -1998,6 +2008,16 @@ export function StoryKioskApp() {
             </div>
             {classId ? (
               <span className="absolute bottom-8 right-10 z-20 flex gap-2">
+                {padletUrl ? (
+                  <a
+                  href={padletUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl border-2 border-[#FFB15D]/80 bg-[#7B3FE4] px-4 text-sm font-black text-white shadow-[0_0_18px_rgba(123,63,228,0.35)] active:scale-[0.98]"
+              >
+                  📌 패들렛 바로가기
+              </a>
+                ) : null}
                 {isAdmin ? (
                   <a
                     href="/story/admin"
