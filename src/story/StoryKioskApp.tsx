@@ -91,6 +91,9 @@ const schoolOptions = {
 const allSchoolOptions = [...schoolOptions.초등학교, ...schoolOptions.중학교];
 const directSchoolValue = "__direct";
 
+// 동화 영상(미리보기·다운로드)은 지금 수업에서 쓰지 않아 숨겨 둔다. 다시 쓰려면 true로 바꾼다.
+const showVideoTools = false;
+
 function fileOwnerOf(session: Pick<AdminSession, "role" | "student"> | null) {
   if (session?.role !== "student" || !session.student) return "";
   const { school, grade, classNo, number, name } = session.student;
@@ -596,13 +599,17 @@ function StoryTextPanel({
   pageIndex,
   imageReady,
   onPrev,
-  onNext
+  onNext,
+  onSavePdf,
+  pdfBusy
 }: {
   story: StoryResult;
   pageIndex: number;
   imageReady: boolean;
   onPrev: () => void;
   onNext: () => void;
+  onSavePdf: () => void;
+  pdfBusy: boolean;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -621,12 +628,24 @@ function StoryTextPanel({
           다음 쪽 <ArrowRightIcon className="h-5 w-5" />
         </SecondaryButton>
       </div>
-      {pageIndex === story.pages.length - 1 ? (
-        <div className="grid gap-1 rounded-2xl border border-[#FFB15D]/45 bg-[#2E2442]/70 p-2 text-center">
-          <p className="text-sm font-black text-[#FFE9B0]">마지막 쪽이에요! PDF를 저장한 뒤 패들렛에 올려 친구들과 나눠요.</p>
+      <div className="grid gap-1.5 rounded-2xl border border-[#FFB15D]/45 bg-[#2E2442]/70 p-2 text-center">
+        <p className="text-sm font-black text-[#FFE9B0]">
+          {pageIndex === story.pages.length - 1
+            ? "마지막 쪽이에요! PDF를 저장한 뒤 패들렛에 올려 친구들과 나눠요."
+            : "6쪽까지 읽고 PDF로 저장한 뒤 패들렛에 올려요."}
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onSavePdf}
+            disabled={pdfBusy}
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 whitespace-nowrap rounded-2xl border-2 border-[#FFB15D] bg-[#F0633C] px-4 text-base font-black text-white shadow-[0_0_20px_rgba(240,99,60,0.3)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <ArrowDownTrayIcon className="h-5 w-5" /> {pdfBusy ? "PDF 준비 중…" : "PDF 저장"}
+          </button>
           <PadletButton className="w-full" />
         </div>
-      ) : null}
+      </div>
       {!imageReady ? (
         <div className="flex items-center justify-center gap-2 rounded-2xl border border-[#73DFFF]/25 bg-[#101A38]/72 py-3 text-sm font-black text-[#D4F5FF]">
           <SparklesIcon className="h-4 w-4 animate-pulse" /> 이미지 생성 중...
@@ -2039,7 +2058,7 @@ export function StoryKioskApp() {
             ) : null}
           </div>
         ) : (
-          <div className={["z-10 mx-auto grid h-full min-h-0 w-full max-w-[1560px] overflow-hidden", step === "result" ? "grid-rows-[minmax(0,1fr)_auto] gap-2" : "grid-rows-1"].join(" ")}>
+          <div className={["z-10 mx-auto grid h-full min-h-0 w-full max-w-[1560px] overflow-hidden", step === "result" && showVideoTools ? "grid-rows-[minmax(0,1fr)_auto] gap-2" : "grid-rows-1"].join(" ")}>
             <div className="grid min-h-0 w-full grid-cols-1 gap-4 overflow-hidden py-1 lg:grid-cols-[minmax(0,0.95fr)_minmax(520px,1.15fr)] lg:items-stretch">
               <div className="relative min-h-0 overflow-hidden rounded-[30px] border-2 border-[#FFB15D]/80 bg-[#111936]/78 shadow-[0_0_36px_rgba(45,107,255,0.28)]">
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(125,232,255,0.18),transparent_40%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0))]" />
@@ -2362,6 +2381,8 @@ export function StoryKioskApp() {
                       imageReady={!currentPageImageLoading}
                       onPrev={() => setPageIndex((current) => Math.max(0, current - 1))}
                       onNext={() => setPageIndex((current) => Math.min(story.pages.length - 1, current + 1))}
+                      onSavePdf={printStorybook}
+                      pdfBusy={Boolean(imageGenerationMode) || videoPhase === "render"}
                     />
                     <div className="rounded-2xl border border-[#FFB15D]/30 bg-[#2E2442]/72 p-2">
                       <div className="mb-2 flex items-center justify-between gap-2">
@@ -2430,7 +2451,7 @@ export function StoryKioskApp() {
                 ) : null}
               </div>
             </div>
-            {step === "result" ? (
+            {step === "result" && showVideoTools ? (
               <div className="flex w-full flex-col gap-3 pb-1">
                 {grade ? (
                   <div className="rounded-2xl border border-[#73DFFF]/25 bg-[#0B1029]/72 p-2.5">
