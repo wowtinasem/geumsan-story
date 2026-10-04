@@ -193,7 +193,64 @@ export type AdminStats = {
     imageBusy: number;
   };
   schools: { school: string; students: number; stories: number; images: number }[];
+  restartRequests?: RestartRequest[];
 };
+
+export type RestartRequest = {
+  id: string;
+  school: string;
+  grade: number;
+  number: number;
+  name: string;
+  requestedAt: number;
+  stories: number;
+  images: number;
+  restarts: number;
+};
+
+export type RestartStatus = "none" | "pending" | "approved" | "denied";
+
+async function postStatus(path: string, body: Record<string, unknown>): Promise<RestartStatus | null> {
+  try {
+    const response = await fetch(`${storyProxyUrl}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) return null;
+    const data = (await response.json()) as { status?: RestartStatus };
+    return data.status || null;
+  } catch {
+    return null;
+  }
+}
+
+// 학생: "다시 만들기" 요청 / 결과 확인 / 취소
+export function requestRestart(sessionToken: string) {
+  return postStatus("/api/restart-request", { sessionToken });
+}
+
+export function checkRestartStatus(sessionToken: string) {
+  return postStatus("/api/restart-status", { sessionToken });
+}
+
+export function cancelRestart(sessionToken: string) {
+  return postStatus("/api/restart-cancel", { sessionToken });
+}
+
+// 관리자: 요청 허락(true) 또는 거절(false)
+export async function decideRestart(sessionToken: string, id: string, approve: boolean) {
+  try {
+    const response = await fetch(`${storyProxyUrl}/api/admin-restart-decide`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionToken, id, approve })
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
 
 // 관리자 현황판: 관리자 토큰이 아니면 null (로그인이 풀린 경우 포함).
 export async function requestAdminStats(sessionToken: string): Promise<AdminStats | "unauthorized" | null> {

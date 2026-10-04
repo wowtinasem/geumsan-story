@@ -16,8 +16,11 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildStoryPdfMetadata } from "./pdfMetadata";
 import {
+  cancelRestart,
+  checkRestartStatus,
   clearAdminSession,
   clearRetiredClassSessions,
+  requestRestart,
   readAdminSession,
   requestAdminLogin,
   requestStudentLogin,
@@ -32,6 +35,7 @@ import { characters, eventGroups, places, traits } from "./storyData";
 import { isGeneratedSceneImage } from "./imageGeneration";
 import { checkProxyHealth, generateSceneImage, generateStory, localStory } from "./storyEngine";
 import { buildStoryVideo } from "./storyVideo";
+import { clearWork, loadWork, pruneOldWorks, saveWork } from "./workStore";
 import {
   defaultMusicGenreId,
   getMusicGenre,
@@ -45,16 +49,40 @@ import type { CharacterChoice, Choice, PlaceChoice, StoryResult, StorySelection 
 
 type Step = "login" | "attract" | "character" | "trait" | "place" | "events" | "loading" | "result";
 type ImageGenerationMode = "cover" | "print" | null;
-type SavedStory = {
-  id: string;
-  createdAt: string;
+// 학생별로 이 기기에 보관하는 "만들던 동화" (workStore.ts). 같은 정보로 다시 들어오면 이어서 만든다.
+type StoryWork = {
   character: CharacterChoice;
+  heroName: string;
+  gender: HeroType;
+  heroAgeId: string;
+  hairColorId: string;
+  featureIds: string[];
+  featureTab: "pick" | "write";
+  featureText: string;
   trait: Choice;
   place: PlaceChoice;
   events: StorySelection["events"];
+  customTrait: string;
+  customEvents: Record<keyof StorySelection["events"], string>;
   story: StoryResult;
   sceneImages: Record<number, string>;
 };
+
+type RestartPhase = "idle" | "confirm" | "pending" | "denied" | "error";
+
+// 예전 버전이 localStorage에 그림까지 넣던 저장 키. 앱을 열 때 지운다.
+const legacySavedStoriesKey = "geumsan-ai-story.savedStories.v1";
+
+function workOwnerOf(session: Pick<AdminSession, "role" | "student"> | null) {
+  if (!session) return "";
+  if (session.role === "student" && session.student) {
+    const { school, grade, number, name } = session.student;
+    // 서버(usageKey)와 같은 규칙: 띄어쓰기와 "초등학교/초", "중학교/중" 차이는 같은 학생으로 본다.
+    const schoolKey = school.replace(/\s+/g, "").replace(/초등학교$/, "초").replace(/중학교$/, "중");
+    return `student:${schoolKey}|${grade}|${number}|${name.replace(/\s+/g, "")}`;
+  }
+  return "admin";
+}
 
 const stepOrder: Step[] = ["character", "trait", "place", "events"];
 const stepLabels = ["주인공", "성격", "배경", "사건"];
@@ -81,8 +109,6 @@ const heroFeatures: { id: string; label: string; desc: string }[] = [
   { id: "backpack", label: "가방", desc: "a small backpack" }
 ];
 const defaultHairColor = hairColors[0];
-const savedStoriesKey = "geumsan-ai-story.savedStories.v1";
-const maxSavedStories = 8;
 const blockedCustomWords = ["바보", "죽", "살인", "폭력", "피", "혐오", "욕", "나쁜말"];
 
 function sanitizeCustomChoice(value: string) {
@@ -106,66 +132,6 @@ function sanitizeFeatureText(value: string) {
 function isBlockedCustomChoice(value: string) {
   const normalized = value.replace(/\s+/g, "").toLowerCase();
   return blockedCustomWords.some((word) => normalized.includes(word));
-}
-
-function readSavedStories() {
-  if (typeof window === "undefined") return [];
-
-  try {
-    const value = window.localStorage.getItem(savedStoriesKey);
-    if (!value) return [];
-    const stories = JSON.parse(value);
-    if (!Array.isArray(stories)) return [];
-
-    const validStories = stories.filter((story): story is SavedStory => {
-      return Boolean(
-        story &&
-        typeof story.id === "string" &&
-        typeof story.createdAt === "string" &&
-        story.character &&
-        typeof story.character.id === "string" &&
-        typeof story.character.name === "string" &&
-        story.trait &&
-        typeof story.trait.id === "string" &&
-        typeof story.trait.label === "string" &&
-        story.place &&
-        typeof story.place.id === "string" &&
-        typeof story.place.name === "string" &&
-        story.events &&
-        story.story &&
-        Array.isArray(story.story.pages)
-      );
-    });
-
-    if (validStories.length !== stories.length) {
-      writeSavedStories(validStories);
-    }
-
-    return validStories;
-  } catch {
-    window.localStorage.removeItem(savedStoriesKey);
-    return [];
-  }
-}
-
-function writeSavedStories(stories: SavedStory[]) {
-  try {
-    window.localStorage.setItem(savedStoriesKey, JSON.stringify(stories.slice(0, maxSavedStories)));
-  } catch {
-    window.localStorage.removeItem(savedStoriesKey);
-  }
-}
-
-function formatSavedStoryDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "저장된 동화";
-
-  return new Intl.DateTimeFormat("ko-KR", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
 }
 
 function mascotGuideForStep(step: Step, characterName: string) {
@@ -901,8 +867,12 @@ export function StoryKioskApp() {
   const [sceneImages, setSceneImages] = useState<Record<number, string>>({});
   const [imageGenerationMode, setImageGenerationMode] = useState<ImageGenerationMode>(null);
   const [imageGenerationMessage, setImageGenerationMessage] = useState("");
-  const [savedStories, setSavedStories] = useState<SavedStory[]>([]);
-  const [activeSavedStoryId, setActiveSavedStoryId] = useState<string | null>(null);
+  // 이 기기에 보관 중인 내 동화가 있는지(이어서 만들기), 누구의 동화인지
+  const [workOwner, setWorkOwner] = useState("");
+  const [hasWork, setHasWork] = useState(false);
+  const [restartPhase, setRestartPhase] = useState<RestartPhase>("idle");
+  // 사건 화면에서 "이미 만들었어요"로 막혀 요청하는 경우(이 기기에 남은 동화가 없을 때)
+  const [restartFromLimit, setRestartFromLimit] = useState(false);
   const [customTrait, setCustomTrait] = useState("");
   const [customEvents, setCustomEvents] = useState<Record<keyof StorySelection["events"], string>>({
     opening: "",
@@ -970,22 +940,6 @@ export function StoryKioskApp() {
   const printableImagesReady = IMAGE_PAGES.every((index) => Boolean(sceneImages[index]));
   const currentPageImageLoading = Boolean(imageGenerationMode && IMAGE_PAGES.includes(pageIndex as typeof IMAGE_PAGES[number]) && !sceneImages[pageIndex]);
 
-  const persistSavedStories = useCallback((updater: (current: SavedStory[]) => SavedStory[]) => {
-    setSavedStories((current) => {
-      const next = updater(current).slice(0, maxSavedStories);
-      writeSavedStories(next);
-      return next;
-    });
-  }, []);
-
-  const persistActiveStoryImages = useCallback((images: Record<number, string>) => {
-    if (!activeSavedStoryId) return;
-
-    persistSavedStories((current) =>
-      current.map((item) => (item.id === activeSavedStoryId ? { ...item, sceneImages: images } : item))
-    );
-  }, [activeSavedStoryId, persistSavedStories]);
-
   const stopStoryMusic = useCallback(() => {
     if (!audioRef.current) return;
 
@@ -1024,6 +978,135 @@ export function StoryKioskApp() {
     }
   }
 
+  // 화면의 동화 작업을 처음 상태로 (로그아웃·다시 만들기 허락 때)
+  const resetWork = useCallback((keepChoices = false) => {
+    if (!keepChoices) {
+      setCharacter(defaultCharacter);
+      setHeroName("");
+      setGender("girl");
+      setHeroAgeId(defaultHeroAgeId.girl);
+      setHairColorId(defaultHairColor.id);
+      setFeatureIds([]);
+      setFeatureTab("pick");
+      setFeatureText("");
+      setTrait(defaultTrait);
+      setPlace(defaultPlace);
+      setEvents({
+        opening: eventGroups.opening[0],
+        development: eventGroups.development[0],
+        climax: eventGroups.climax[0],
+        ending: eventGroups.ending[0]
+      });
+      setCustomTrait("");
+      setCustomEvents({ opening: "", development: "", climax: "", ending: "" });
+    }
+    setSceneImages({});
+    setImageGenerationMessage("");
+    setPageIndex(0);
+    setHasWork(false);
+    setVideoPhase("idle");
+    setVideoMessage("");
+    setStoryVideoUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
+  }, []);
+
+  // 로그인한 사람의 보관된 동화를 불러온다. 없으면 빈 상태로 시작한다.
+  async function openWorkFor(session: Pick<AdminSession, "role" | "student">) {
+    const owner = workOwnerOf(session);
+    resetWork();
+    setRestartPhase("idle");
+    setWorkOwner(owner);
+    const work = await loadWork<StoryWork>(owner);
+    if (!work || !work.story?.pages?.length) return;
+    setCharacter(work.character);
+    setHeroName(work.heroName);
+    setGender(work.gender);
+    setHeroAgeId(work.heroAgeId);
+    setHairColorId(work.hairColorId);
+    setFeatureIds(work.featureIds);
+    setFeatureTab(work.featureTab);
+    setFeatureText(work.featureText);
+    setTrait(work.trait);
+    setPlace(work.place);
+    setEvents(work.events);
+    setCustomTrait(work.customTrait);
+    setCustomEvents(work.customEvents);
+    setStory(work.story);
+    setSceneImages(work.sceneImages || {});
+    setHasWork(true);
+  }
+
+  // 동화가 만들어진 뒤에는 글·그림이 바뀔 때마다 이 기기에 저장한다(튕겨도 이어서 만들기).
+  useEffect(() => {
+    if (!hasWork || !workOwner) return;
+    const work: StoryWork = {
+      character,
+      heroName,
+      gender,
+      heroAgeId,
+      hairColorId,
+      featureIds,
+      featureTab,
+      featureText,
+      trait,
+      place,
+      events,
+      customTrait,
+      customEvents,
+      story,
+      sceneImages
+    };
+    void saveWork(workOwner, work);
+  }, [hasWork, workOwner, story, sceneImages, character, heroName, gender, heroAgeId, hairColorId, featureIds, featureTab, featureText, trait, place, events, customTrait, customEvents]);
+
+  // "다시 만들기": 학생은 선생님(관리자) 허락이 있어야 한다. 허락되면 지금 동화를 지우고 주인공 고르기부터.
+  const startOver = useCallback(async () => {
+    await clearWork(workOwner);
+    resetWork(true);
+    setRestartPhase("idle");
+    setCustomError("");
+    // 사건 화면에서 막혔던 학생은 고른 내용 그대로 "동화 만들기"만 다시 누르면 된다.
+    setStep(restartFromLimit ? "events" : "character");
+    setRestartFromLimit(false);
+  }, [workOwner, resetWork, restartFromLimit]);
+
+  async function sendRestartRequest() {
+    setRestartPhase("pending");
+    const status = await requestRestart(classSessionToken);
+    if (status === "approved") {
+      await startOver();
+    } else if (status !== "pending") {
+      setRestartPhase("error");
+    }
+  }
+
+  async function cancelRestartRequest() {
+    setRestartPhase("idle");
+    setRestartFromLimit(false);
+    await cancelRestart(classSessionToken);
+  }
+
+  useEffect(() => {
+    if (restartPhase !== "pending") return;
+    let stopped = false;
+    const timer = window.setInterval(async () => {
+      const status = await checkRestartStatus(classSessionToken);
+      if (stopped) return;
+      if (status === "approved") {
+        stopped = true;
+        await startOver();
+      } else if (status === "denied") {
+        setRestartPhase("denied");
+      }
+    }, 4000);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [restartPhase, classSessionToken, startOver]);
+
   const reset = useCallback(() => {
     stopStoryMusic();
     setMusicState("paused");
@@ -1039,6 +1122,9 @@ export function StoryKioskApp() {
     setClassId("");
     setClassSessionToken("");
     setIsAdmin(false);
+    resetWork();
+    setWorkOwner("");
+    setRestartPhase("idle");
     setStudentNumber("");
     setStudentName("");
     setAdminMode(false);
@@ -1047,7 +1133,7 @@ export function StoryKioskApp() {
     setImageGenerationMessage("");
     setPageIndex(0);
     setStep("login");
-  }, [stopStoryMusic, classSessionToken]);
+  }, [stopStoryMusic, classSessionToken, resetWork]);
 
   async function signInAsAdmin() {
     setClassLoginPending(true);
@@ -1065,6 +1151,7 @@ export function StoryKioskApp() {
     setClassId(sessionLabel(session));
     setCoverAuthor(coverAuthorLine(session));
     setIsAdmin(session.role === "admin");
+    void openWorkFor(session);
     setClassSessionToken(result.sessionToken);
     setClassLoginMessage(result.message);
     setStep("attract");
@@ -1090,26 +1177,20 @@ export function StoryKioskApp() {
     setClassId(sessionLabel(session));
     setCoverAuthor(coverAuthorLine(session));
     setIsAdmin(session.role === "admin");
+    void openWorkFor(session);
     setClassSessionToken(result.sessionToken);
     setClassLoginMessage(result.message);
     setStep("attract");
   }
 
-  function openSavedStory(savedStory: SavedStory) {
-    setCharacter(savedStory.character);
-    setTrait(savedStory.trait);
-    setPlace(savedStory.place);
-    setEvents(savedStory.events);
-    setStory(savedStory.story);
-    setSceneImages(savedStory.sceneImages || {});
-    setActiveSavedStoryId(savedStory.id);
-    setPageIndex(0);
-    setStep("result");
-  }
-
   useEffect(() => {
     checkProxyHealth().then(setHealth);
-    setSavedStories(readSavedStories());
+    try {
+      window.localStorage.removeItem(legacySavedStoriesKey);
+    } catch {
+      // 저장소를 못 쓰는 브라우저면 넘어간다.
+    }
+    void pruneOldWorks();
     clearRetiredClassSessions();
 
     const session = readAdminSession();
@@ -1128,6 +1209,7 @@ export function StoryKioskApp() {
       setClassId(sessionLabel(session));
       setCoverAuthor(coverAuthorLine(session));
       setIsAdmin(session.role === "admin");
+      void openWorkFor(session);
       setClassSessionToken(session.sessionToken);
       setStep("attract");
     });
@@ -1163,7 +1245,6 @@ export function StoryKioskApp() {
 
   async function createStory() {
     const storySelection = selection;
-    const storyId = `story-${Date.now()}`;
     setStep("loading");
     setPageIndex(0);
     setSceneImages({});
@@ -1177,27 +1258,16 @@ export function StoryKioskApp() {
       if ((error as { code?: string })?.code === "usage_limit") {
         setStep("events");
         setCustomError(
-          (error as Error).message || "이 아이디로 만들 수 있는 횟수를 모두 사용했어요. 선생님께 리셋을 요청해 주세요."
+          (error as Error).message || "이미 동화를 만들었어요. 새로 만들려면 선생님께 허락을 받아 주세요."
         );
+        setRestartFromLimit(true);
+        setRestartPhase("confirm");
         return;
       }
       throw error;
     }
     setStory(result);
-    setActiveSavedStoryId(storyId);
-    persistSavedStories((current) => [
-      {
-        id: storyId,
-        createdAt: new Date().toISOString(),
-        character,
-        trait,
-        place,
-        events,
-        story: result,
-        sceneImages: {}
-      },
-      ...current.filter((item) => item.id !== storyId)
-    ]);
+    setHasWork(true);
     setStep("result");
   }
 
@@ -1227,7 +1297,6 @@ export function StoryKioskApp() {
           if (isGeneratedSceneImage(image)) {
             nextImages = { ...nextImages, [index]: image.imageDataUrl };
             setSceneImages(nextImages);
-            persistActiveStoryImages(nextImages);
             break;
           }
 
@@ -1400,6 +1469,66 @@ export function StoryKioskApp() {
       ) : null}
       <div className={(step === "login" || step === "attract" ? "hidden " : "") + "pointer-events-none fixed inset-6 rounded-[34px] border-4 border-[#244DFF] shadow-[inset_0_0_0_3px_rgba(255,177,93,0.85),0_0_34px_rgba(36,77,255,0.42)]"} />
 
+      {restartPhase !== "idle" ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/65 p-4" role="dialog" aria-modal="true" aria-label="다시 만들기">
+          <div className="w-full max-w-lg rounded-[28px] border-2 border-[#FFB15D]/80 bg-[#111936] p-6 text-center text-white shadow-[0_0_36px_rgba(45,107,255,0.35)]">
+            <img src="/images/geumsami.png" alt="" aria-hidden="true" className="mx-auto h-20 w-20 object-contain" draggable={false} />
+            {restartPhase === "confirm" ? (
+              <>
+                <h2 className="mt-2 text-2xl font-black">처음부터 다시 만들까요?</h2>
+                <p className="mt-3 break-keep text-lg font-bold leading-relaxed text-[#DDFBFF]">
+                  {restartFromLimit
+                    ? "이미 동화를 한 편 만들었어요. 새로 만들려면 선생님 허락이 필요해요. 허락되면 지금 고른 내용으로 바로 만들 수 있어요."
+                    : isAdmin
+                      ? "지금 만든 동화와 그림은 지워져요."
+                      : "선생님께 허락을 받으면 지금 만든 동화와 그림은 지워지고 주인공 고르기부터 다시 시작해요."}
+                </p>
+                <div className="mt-5 flex justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRestartPhase("idle");
+                      setRestartFromLimit(false);
+                    }}
+                    className="min-h-14 rounded-2xl border-2 border-[#73DFFF]/55 bg-[#101A38] px-6 text-lg font-black"
+                  >
+                    그만두기
+                  </button>
+                  <button type="button" onClick={sendRestartRequest} className="min-h-14 rounded-2xl border-2 border-[#FFB15D]/80 bg-[#F0633C] px-6 text-lg font-black">
+                    {isAdmin ? "다시 만들기" : "선생님께 요청하기"}
+                  </button>
+                </div>
+              </>
+            ) : restartPhase === "pending" ? (
+              <>
+                <h2 className="mt-2 text-2xl font-black">선생님 허락을 기다리고 있어요</h2>
+                <p className="mt-3 break-keep text-lg font-bold leading-relaxed text-[#DDFBFF]">
+                  손을 들고 선생님께 말씀드려 주세요.
+                  <br />
+                  허락되면 자동으로 다시 시작해요.
+                </p>
+                <div className="mx-auto mt-4 h-10 w-10 animate-spin rounded-full border-4 border-[#73DFFF]/30 border-t-[#FFB15D]" />
+                <button type="button" onClick={cancelRestartRequest} className="mt-5 min-h-12 rounded-2xl border-2 border-[#73DFFF]/55 bg-[#101A38] px-6 font-black">
+                  요청 취소
+                </button>
+              </>
+            ) : (
+              <>
+                <h2 className="mt-2 text-2xl font-black">{restartPhase === "denied" ? "이번에는 지금 동화를 완성해요" : "요청을 보내지 못했어요"}</h2>
+                <p className="mt-3 break-keep text-lg font-bold leading-relaxed text-[#DDFBFF]">
+                  {restartPhase === "denied"
+                    ? "선생님이 이번에는 다시 만들기를 허락하지 않았어요. 만든 동화로 그림을 완성하고 PDF로 저장해 보세요."
+                    : "인터넷 연결을 확인하고 잠시 뒤 다시 눌러 주세요."}
+                </p>
+                <button type="button" onClick={() => setRestartPhase("idle")} className="mt-5 min-h-14 rounded-2xl border-2 border-[#FFB15D]/80 bg-[#F0633C] px-8 text-lg font-black">
+                  확인
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
+
       <section className={["relative grid h-full min-h-0 overflow-hidden p-5 sm:p-6 lg:p-8", step === "login" || step === "attract" ? "grid-rows-1" : "grid-rows-[auto_minmax(0,1fr)]"].join(" ")}>
         {step !== "login" && step !== "attract" ? (
           <header className="z-10 mx-auto flex w-full max-w-[1560px] flex-wrap items-center justify-between gap-3 pb-2">
@@ -1424,11 +1553,8 @@ export function StoryKioskApp() {
                   <HeaderActionButton onClick={reset}>
                     처음으로 <HomeIcon className="h-5 w-5" />
                   </HeaderActionButton>
-                  <HeaderActionButton onClick={createStory}>
-                    다시 짓기 <ArrowPathIcon className="h-5 w-5" />
-                  </HeaderActionButton>
-                  <HeaderActionButton onClick={() => setStep("character")}>
-                    새 동화 <SparklesIcon className="h-5 w-5" />
+                  <HeaderActionButton onClick={() => setRestartPhase("confirm")}>
+                    다시 만들기 <ArrowPathIcon className="h-5 w-5" />
                   </HeaderActionButton>
                 </div>
               ) : null}
@@ -1624,13 +1750,38 @@ export function StoryKioskApp() {
                     준비되었으면 버튼을 눌러 줘!
                   </span>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setStep("character")}
-                  className="min-h-16 rounded-[22px] border-2 border-[#FFB15D]/80 bg-[#F0633C] px-12 text-[clamp(20px,2.2vw,30px)] font-black text-white shadow-[0_16px_34px_rgba(240,99,60,0.32)] transition hover:-translate-y-1 active:scale-[0.98]"
-                >
-                  동화 만들기 시작
-                </button>
+                {hasWork ? (
+                  <span className="flex flex-col items-center gap-2">
+                    <span className="flex flex-wrap items-center justify-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPageIndex(0);
+                          setStep("result");
+                        }}
+                        className="min-h-16 rounded-[22px] border-2 border-[#FFB15D]/80 bg-[#F0633C] px-12 text-[clamp(20px,2.2vw,30px)] font-black text-white shadow-[0_16px_34px_rgba(240,99,60,0.32)] transition hover:-translate-y-1 active:scale-[0.98]"
+                      >
+                        이어서 만들기
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRestartPhase("confirm")}
+                        className="min-h-16 rounded-[22px] border-2 border-[#73DFFF]/55 bg-[#101A38]/88 px-8 text-[clamp(17px,1.8vw,24px)] font-black text-[#DDFBFF] transition hover:-translate-y-1 active:scale-[0.98]"
+                      >
+                        다시 만들기
+                      </button>
+                    </span>
+                    <span className="text-sm font-bold text-[#DDFBFF]/85">만들던 동화가 있어요. 이어서 그림을 만들고 PDF로 저장해요.</span>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setStep("character")}
+                    className="min-h-16 rounded-[22px] border-2 border-[#FFB15D]/80 bg-[#F0633C] px-12 text-[clamp(20px,2.2vw,30px)] font-black text-white shadow-[0_16px_34px_rgba(240,99,60,0.32)] transition hover:-translate-y-1 active:scale-[0.98]"
+                  >
+                    동화 만들기 시작
+                  </button>
+                )}
 
               </span>
             </div>

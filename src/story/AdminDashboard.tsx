@@ -2,9 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AdminGuide, type GuideSectionId } from "./AdminGuide";
-import { readAdminSession, requestAdminStats, requestAiConnection, type AdminStats, type AiConnection } from "./adminSession";
+import {
+  decideRestart,
+  readAdminSession,
+  requestAdminStats,
+  requestAiConnection,
+  type AdminStats,
+  type AiConnection,
+  type RestartRequest
+} from "./adminSession";
 
-const REFRESH_MS = 10000;
+const REFRESH_MS = 5000;
 const AI_CHECK_MS = 5 * 60 * 1000;
 
 function Light({ ok, label, okText, badText }: { ok: boolean | null; label: string; okText: string; badText: string }) {
@@ -40,6 +48,76 @@ function overallState(stats: AdminStats) {
   return { id: "ok" as const, label: "원활", detail: "그림이 바로바로 만들어지고 있어요.", tone: "bg-[#173F2E] border-[#5BE3A0]" };
 }
 
+function minutesAgo(t: number, now: number) {
+  const minutes = Math.max(0, Math.floor((now - t) / 60000));
+  return minutes === 0 ? "방금" : `${minutes}분 전`;
+}
+
+// 학생의 "다시 만들기" 요청: 학생이 손을 들면 학번을 확인하고 허락한다.
+function RestartRequests({
+  requests,
+  now,
+  busyId,
+  onDecide,
+  onHelp
+}: {
+  requests: RestartRequest[];
+  now: number;
+  busyId: string;
+  onDecide: (id: string, approve: boolean) => void;
+  onHelp: () => void;
+}) {
+  return (
+    <section className={`mt-5 rounded-3xl border-2 p-5 ${requests.length ? "border-[#FFB15D] bg-[#4A2A12]" : "border-[#73DFFF]/25 bg-[#111A39]"}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-xl font-black">
+          다시 만들기 요청 {requests.length ? <span className="ml-1 rounded-full bg-[#F0633C] px-3 py-0.5 text-base">{requests.length}건</span> : null}
+        </h2>
+        <button type="button" onClick={onHelp} className="rounded-xl bg-white/15 px-4 py-2 text-sm font-black">
+          어떻게 하나요?
+        </button>
+      </div>
+      {requests.length ? (
+        <ul className="mt-3 space-y-2">
+          {requests.map((request) => (
+            <li key={request.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#111A39] px-4 py-3">
+              <div>
+                <div className="text-lg font-black">
+                  {request.school} {request.grade}학년 {request.number}번 {request.name}
+                </div>
+                <div className="text-sm text-[#C9E9F5]">
+                  {minutesAgo(request.requestedAt, now)} 요청 · 지금까지 동화 {request.stories}편 · 그림 {request.images}장
+                  {request.restarts ? ` · 다시 만들기 ${request.restarts}번 허락받음` : ""}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={busyId === request.id}
+                  onClick={() => onDecide(request.id, false)}
+                  className="min-h-11 rounded-xl border border-[#73DFFF]/45 bg-[#101A38] px-4 font-black disabled:opacity-50"
+                >
+                  거절
+                </button>
+                <button
+                  type="button"
+                  disabled={busyId === request.id}
+                  onClick={() => onDecide(request.id, true)}
+                  className="min-h-11 rounded-xl border-2 border-[#5BE3A0] bg-[#1F6B47] px-5 font-black disabled:opacity-50"
+                >
+                  허락
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-sm text-[#9FB4D0]">지금 기다리는 요청이 없어요. 학생이 &ldquo;다시 만들기&rdquo;를 누르면 여기에 이름이 떠요.</p>
+      )}
+    </section>
+  );
+}
+
 function Card({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
     <div className="rounded-2xl border border-[#73DFFF]/30 bg-[#111A39] p-4">
@@ -56,9 +134,19 @@ export function AdminDashboard() {
   const [problem, setProblem] = useState("");
   const [checkedAt, setCheckedAt] = useState(0);
   const [guide, setGuide] = useState<GuideSectionId | null>(null);
+  const [busyId, setBusyId] = useState("");
   // undefined: 아직 확인 전, null: 확인 실패
   const [ai, setAi] = useState<AiConnection | null | undefined>(undefined);
   const closeGuide = useCallback(() => setGuide(null), []);
+
+  async function decide(id: string, approve: boolean) {
+    if (!token) return;
+    setBusyId(id);
+    await decideRestart(token, id, approve);
+    setBusyId("");
+    // 결과는 다음 새로 고침에도 반영되지만, 목록에서는 바로 뺀다.
+    setStats((current) => (current ? { ...current, restartRequests: (current.restartRequests || []).filter((request) => request.id !== id) } : current));
+  }
 
   useEffect(() => {
     const session = readAdminSession();
@@ -129,7 +217,7 @@ export function AdminDashboard() {
           <div>
             <h1 className="text-2xl font-black sm:text-3xl">관리자 현황판</h1>
             <p className="text-sm text-[#9FB4D0]">
-              10초마다 자동으로 새로 고쳐요{checkedAt ? ` · 마지막 확인 ${timeText(checkedAt)}` : ""}
+              5초마다 자동으로 새로 고쳐요{checkedAt ? ` · 마지막 확인 ${timeText(checkedAt)}` : ""}
             </p>
           </div>
           <div className="flex gap-2">
@@ -157,7 +245,15 @@ export function AdminDashboard() {
 
         {stats && state && q ? (
           <>
-            <section className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-[#73DFFF]/30 bg-[#111A39] px-5 py-3 text-sm">
+            <RestartRequests
+              requests={stats.restartRequests || []}
+              now={stats.now}
+              busyId={busyId}
+              onDecide={decide}
+              onHelp={() => setGuide("restartRequest")}
+            />
+
+            <section className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-[#73DFFF]/30 bg-[#111A39] px-5 py-3 text-sm">
               <Light ok={!problem} label="서버" okText="켜져 있음" badText="연결 안 됨" />
               <Light ok={ai === undefined ? null : Boolean(ai?.text)} label="글 AI" okText="연결됨" badText="확인 필요" />
               <Light ok={ai === undefined ? null : Boolean(ai?.image)} label="그림 AI" okText="연결됨" badText="확인 필요" />

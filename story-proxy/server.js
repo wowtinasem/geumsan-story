@@ -35,8 +35,9 @@ const IMAGE_MAX_QUEUE = Number(process.env.IMAGE_MAX_QUEUE || 400);
 // (Render 앞단 Cloudflare가 아주 긴 요청을 끊을 수 있어 한 요청은 짧게 유지한다.)
 const IMAGE_QUEUE_WAIT_MS = Number(process.env.IMAGE_QUEUE_WAIT_MS || 40000);
 // 학생 한 명(학교·학년·번호·이름)이 쓸 수 있는 최대 횟수. 관리자는 제한 없음.
-const STORY_LIMIT_PER_STUDENT = Number(process.env.STORY_LIMIT_PER_STUDENT || 2); // 처음 1번 + 다시 짓기 1번
-const IMAGE_LIMIT_PER_STUDENT = Number(process.env.IMAGE_LIMIT_PER_STUDENT || 14); // 6장 × 2편 + 다시 그리기 2장
+// 학생 한 명이 기본으로 만들 수 있는 양. "다시 만들기"는 관리자가 허락할 때마다 같은 양을 더 준다.
+const STORY_LIMIT_PER_STUDENT = Number(process.env.STORY_LIMIT_PER_STUDENT || 1); // 동화 1편
+const IMAGE_LIMIT_PER_STUDENT = Number(process.env.IMAGE_LIMIT_PER_STUDENT || 8); // 그림 6장 + 여유 2장
 // MOCK_AI=1 이면 Gemini 대신 가짜 글·그림을 돌려준다(부하 시험용, 비용 없음).
 const MOCK_AI = process.env.MOCK_AI === "1";
 
@@ -121,11 +122,31 @@ const usageCounters = new Map();
 function usageKey(access) {
   if (!access || access.role !== "student" || !access.student) return null;
   const { school, grade, number, name } = access.student;
-  return `${school}|${grade}|${number}|${name}`;
+  return `${sameSchoolKey(school)}|${grade}|${number}|${String(name).replace(/\s+/g, "")}`;
+}
+// "금산 초등학교", "금산초등학교", "금산초"를 같은 학교로 본다 (중학교도 같은 방식)
+function sameSchoolKey(school) {
+  return String(school || "").replace(/\s+/g, "").replace(/초등학교$/, "초").replace(/중학교$/, "중");
 }
 function usageOf(key) {
-  if (!usageCounters.has(key)) usageCounters.set(key, { stories: 0, images: 0 });
+  if (!usageCounters.has(key)) usageCounters.set(key, { stories: 0, images: 0, extraStories: 0, extraImages: 0, restarts: 0 });
   return usageCounters.get(key);
+}
+function storyLimitOf(usage) {
+  return STORY_LIMIT_PER_STUDENT + usage.extraStories;
+}
+function imageLimitOf(usage) {
+  return IMAGE_LIMIT_PER_STUDENT + usage.extraImages;
+}
+
+// "다시 만들기" 요청: 학생이 요청하면 관리자 현황판에 뜨고, 관리자가 허락하면 동화 1편·그림 몫을 더 준다.
+// 서버 메모리에 둔다(재시작하면 기다리던 요청은 사라지고 학생이 다시 요청하면 된다).
+const RESTART_REQUEST_TTL_MS = 30 * 60 * 1000;
+const restartRequests = new Map(); // key → { key, student, requestedAt, status }
+function pruneRestartRequests(t = Date.now()) {
+  for (const [key, request] of restartRequests) {
+    if (t - request.requestedAt > RESTART_REQUEST_TTL_MS) restartRequests.delete(key);
+  }
 }
 
 // 관리자 현황판용 "오늘" 집계 (한국 시간 기준 날짜가 바뀌면 0부터. 서버 메모리라 재시작하면 다시 센다)
@@ -791,6 +812,7 @@ app.post("/api/admin-stats", (req, res) => {
     return res.status(401).json({ error: "admin_required" });
   }
   const stats = today();
+  pruneRestartRequests();
   return res.json({
     now: Date.now(),
     serverStartedAt,
@@ -806,10 +828,71 @@ app.post("/api/admin-stats", (req, res) => {
       imageFailed: stats.imageFailed,
       imageBusy: stats.imageBusy
     },
+    restartRequests: [...restartRequests.values()]
+      .filter((request) => request.status === "pending")
+      .sort((a, b) => a.requestedAt - b.requestedAt)
+      .map((request) => {
+        const usage = usageOf(request.key);
+        return { id: request.key, ...request.student, requestedAt: request.requestedAt, stories: usage.stories, images: usage.images, restarts: usage.restarts };
+      }),
     schools: [...stats.schools.entries()]
       .map(([school, value]) => ({ school, students: value.students.size, stories: value.stories, images: value.images }))
       .sort((a, b) => b.students - a.students)
   });
+});
+
+// 학생: "다시 만들기" 요청. 아직 쓸 몫이 남아 있으면(또는 관리자면) 바로 허락한다.
+app.post("/api/restart-request", (req, res) => {
+  if (denyUnlessSignedIn(req, res)) return undefined;
+  const key = usageKey(req.access);
+  if (!key) return res.json({ status: "approved" });
+  const usage = usageOf(key);
+  if (usage.stories < storyLimitOf(usage)) return res.json({ status: "approved" });
+  pruneRestartRequests();
+  const current = restartRequests.get(key);
+  if (!current || current.status !== "pending") {
+    restartRequests.set(key, { key, student: req.access.student, requestedAt: Date.now(), status: "pending" });
+  }
+  return res.json({ status: "pending" });
+});
+
+// 학생: 요청 결과 확인. 허락·거절은 한 번 알려 주면 지운다.
+app.post("/api/restart-status", (req, res) => {
+  if (denyUnlessSignedIn(req, res)) return undefined;
+  const key = usageKey(req.access);
+  const request = key ? restartRequests.get(key) : null;
+  if (!request) return res.json({ status: "none" });
+  if (request.status !== "pending") restartRequests.delete(key);
+  return res.json({ status: request.status });
+});
+
+app.post("/api/restart-cancel", (req, res) => {
+  if (denyUnlessSignedIn(req, res)) return undefined;
+  const key = usageKey(req.access);
+  if (key && restartRequests.get(key)?.status === "pending") restartRequests.delete(key);
+  return res.json({ status: "none" });
+});
+
+// 관리자: 요청 허락(approve: true) 또는 거절
+app.post("/api/admin-restart-decide", (req, res) => {
+  const access = adminAccess.verify(req.body?.sessionToken);
+  if (!access.ok || access.role !== "admin") {
+    return res.status(401).json({ error: "admin_required" });
+  }
+  const request = restartRequests.get(String(req.body?.id || ""));
+  if (!request || request.status !== "pending") {
+    return res.status(404).json({ error: "request_not_found" });
+  }
+  if (req.body?.approve) {
+    const usage = usageOf(request.key);
+    usage.extraStories += STORY_LIMIT_PER_STUDENT;
+    usage.extraImages += IMAGE_LIMIT_PER_STUDENT;
+    usage.restarts += 1;
+    request.status = "approved";
+  } else {
+    request.status = "denied";
+  }
+  return res.json({ ok: true, status: request.status });
 });
 
 // 관리자 전용: 서버의 Gemini 키로 쓸 수 있는 모델 목록을 확인한다(모델 이름 점검용). 키 값은 돌려주지 않는다.
@@ -882,11 +965,11 @@ app.post("/api/story", async (req, res) => {
   }
 
   const key = usageKey(req.access);
-  if (key && usageOf(key).stories >= STORY_LIMIT_PER_STUDENT) {
+  if (key && usageOf(key).stories >= storyLimitOf(usageOf(key))) {
     return res.status(403).json({
       error: "usage_limit",
       reason: "story_limit",
-      message: `동화는 한 사람당 ${STORY_LIMIT_PER_STUDENT}번까지 만들 수 있어요. 지금 동화로 그림과 PDF를 완성해 보세요.`
+      message: "이미 동화를 만들었어요. 새로 만들려면 \"다시 만들기\"를 눌러 선생님께 허락을 받아 주세요."
     });
   }
   if (key) usageOf(key).stories += 1;
@@ -942,10 +1025,10 @@ app.post("/api/image", async (req, res) => {
   }
 
   const key = usageKey(req.access);
-  if (key && usageOf(key).images >= IMAGE_LIMIT_PER_STUDENT) {
+  if (key && usageOf(key).images >= imageLimitOf(usageOf(key))) {
     return res.status(403).json({
       error: "usage_limit",
-      message: `그림은 한 사람당 ${IMAGE_LIMIT_PER_STUDENT}장까지 만들 수 있어요. 지금까지 만든 그림으로 PDF를 저장해 주세요.`
+      message: "그림을 만들 수 있는 몫을 모두 썼어요. 지금까지 만든 그림으로 PDF를 저장하거나 선생님께 말씀해 주세요."
     });
   }
 

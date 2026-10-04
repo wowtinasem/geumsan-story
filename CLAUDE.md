@@ -29,7 +29,9 @@
 ## 동시 사용(최대 60명) 설정 — `render.yaml`
 - Gemini 한도는 **프로젝트 단위**(API 키를 늘려도 안 늘어남). 그림 모델 RPM 100.
 - 그림: 분당 90장(`IMAGE_RPM_LIMIT`), 동시 16장, 대기 40초 넘으면 `image_busy` → 브라우저가 대기 안내와 함께 자동 재시도.
-- 학생당 동화 2편·그림 14장, 요청 제한은 학생(로그인)별 분당 60.
+- 학생당 기본 동화 1편·그림 8장. "다시 만들기"는 학생이 요청 → 관리자 현황판에서 허락하면 같은 양을 더 준다(`/api/restart-*`, `/api/admin-restart-decide`). 요청 제한은 학생(로그인)별 분당 60.
+- 학생 동일인 판정: 학교명 띄어쓰기·"초등학교/초"·"중학교/중" 차이는 무시(server `usageKey`, 앱 `workOwnerOf`).
+- 만들던 동화는 기기 IndexedDB(`src/story/workStore.ts`)에 학생별 저장 → 같은 기기·같은 정보로 들어오면 "이어서 만들기". 서버에는 저장하지 않는다.
 - 모델: 글 `gemini-3.8-flash`(thinkingLevel low), 그림 `gemini-3.1-flash-image`. 2.5 계열은 새 사용자에게 막힘.
 
 ## 시험 도구 — `tools/`
