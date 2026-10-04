@@ -166,3 +166,47 @@ export async function requestAdminLogout(sessionToken: string) {
     // 서버에 못 닿아도 로컬 세션은 지운다.
   }
 }
+
+export type AdminStats = {
+  now: number;
+  serverStartedAt: number;
+  mock: boolean;
+  imageQueue: {
+    active: number;
+    waiting: number;
+    startedLastMinute: number;
+    rpmLimit: number;
+    maxConcurrent: number;
+    done: number;
+    failed: number;
+    busyReturned: number;
+    avgSeconds: number;
+  };
+  limits: { storiesPerStudent: number; imagesPerStudent: number };
+  today: {
+    date: string;
+    students: number;
+    stories: number;
+    storyFailed: number;
+    images: number;
+    imageFailed: number;
+    imageBusy: number;
+  };
+  schools: { school: string; students: number; stories: number; images: number }[];
+};
+
+// 관리자 현황판: 관리자 토큰이 아니면 null (로그인이 풀린 경우 포함).
+export async function requestAdminStats(sessionToken: string): Promise<AdminStats | "unauthorized" | null> {
+  try {
+    const response = await fetch(`${storyProxyUrl}/api/admin-stats`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionToken })
+    });
+    if (response.status === 401) return "unauthorized";
+    if (!response.ok) return null;
+    return (await response.json()) as AdminStats;
+  } catch {
+    return null;
+  }
+}

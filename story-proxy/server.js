@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
-import { createAdminAccessStore } from "./adminAccess.js";
+import { createAdminAccessStore, isMiddleSchool } from "./adminAccess.js";
 import { buildGeminiImageRequest, extractGeminiImageResult } from "./geminiImage.js";
 import { toProviderErrorResponse } from "./providerErrors.js";
 
@@ -128,6 +128,35 @@ function usageOf(key) {
   return usageCounters.get(key);
 }
 
+// 관리자 현황판용 "오늘" 집계 (한국 시간 기준 날짜가 바뀌면 0부터. 서버 메모리라 재시작하면 다시 센다)
+const serverStartedAt = Date.now();
+function koreaDate(t = Date.now()) {
+  return new Date(t + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+function emptyDailyStats() {
+  return { date: koreaDate(), stories: 0, storyFailed: 0, images: 0, imageFailed: 0, imageBusy: 0, schools: new Map() };
+}
+let dailyStats = emptyDailyStats();
+function today() {
+  if (dailyStats.date !== koreaDate()) dailyStats = emptyDailyStats();
+  return dailyStats;
+}
+function schoolOf(access) {
+  if (!access || access.role !== "student" || !access.student) return null;
+  const stats = today();
+  const name = access.student.school;
+  if (!stats.schools.has(name)) stats.schools.set(name, { students: new Set(), stories: 0, images: 0 });
+  return stats.schools.get(name);
+}
+function countToday(access, field) {
+  const stats = today();
+  stats[field] += 1;
+  const school = schoolOf(access);
+  if (!school) return;
+  school.students.add(usageKey(access));
+  if (field === "stories" || field === "images") school[field] += 1;
+}
+
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json({ limit: "1mb" }));
 
@@ -196,11 +225,13 @@ function cleanPromptText(value, maxLength) {
 
 const heroTypeWords = { man: "남성", woman: "여성", boy: "남자 어린이", girl: "여자 어린이", robot: "로봇" };
 
-function buildPrompt(selection, grade) {
+function buildPrompt(selection, grade, student) {
   const events = selection.events || {};
+  const isMiddle = Boolean(student && isMiddleSchool(student.school));
   // 학년 선택이 없어진 뒤로 앱은 "all"을 보낸다. 3~4학년용 짧은 글은 "3-4"를 보낼 때만 쓴다.
-  const isUpper = grade !== "3-4";
+  const isUpper = isMiddle || grade !== "3-4";
   const gradeLabel = grade === "3-4" ? "3~4" : grade === "5-6" ? "5~6" : "3~6";
+  const readerLabel = isMiddle ? `중학교 ${student.grade}학년` : `초등 ${gradeLabel}학년`;
   const g = selection.character?.gender;
   // 예: "여성, 노년(70살 이상) 할머니". 나이대 정보가 없으면 유형만 쓴다.
   const genderWord = cleanPromptText(selection.character?.heroLabel, 60) || heroTypeWords[g] || "";
@@ -215,7 +246,7 @@ function buildPrompt(selection, grade) {
 
   return `아래 설정으로 동화 한 편을 써 줘.
 
-- 만들고 읽는 학생 : 초등 ${gradeLabel}학년
+- 만들고 읽는 학생 : ${readerLabel}
 - 주인공: ${name}${genderPart} (성격: ${trait})
 - 배경: ${placeName}
 - 이야기 흐름: 발단 ${opening}, 전개 ${development}, 절정 ${climax}, 결말 ${ending}
@@ -240,8 +271,8 @@ ${placeName === "칠백의총" ? "- 이 장소는 나라를 위해 목숨을 바
 3) 선택한 사건 문장을 그대로 복사하거나 따옴표로 넣지 말고 자연스러운 장면으로 바꾼다.
 
 4) 학년별 난이도 규칙을 적용한다.
-- 초등 3~4학년: 쉬운 어휘, 한 쪽당 1~2개의 짧은 문장으로 40~70자 이내, 직관적인 사건 전개 (길게 늘여 쓰지 않는다)
-- 초등 5~6학년: 조금 더 풍부한 표현, 추론 가능한 사건 전개, 다양한 감정 표현
+${isMiddle ? `- 중학생: 어린아이 말투(~했어요, ~했답니다)를 쓰지 않고 청소년 소설처럼 담백한 문장(~했다)으로 쓴다. 주인공의 고민과 선택, 마음속 갈등을 보여 주고, 비유와 복선을 한두 번 사용한다. 교훈은 직접 말하지 않고 여운으로 남긴다. 한 쪽당 2~4문장, 90~160자 이내로 쓴다(책 한 쪽에 들어가야 하므로 더 길게 쓰지 않는다).` : `- 초등 3~4학년: 쉬운 어휘, 한 쪽당 1~2개의 짧은 문장으로 40~70자 이내, 직관적인 사건 전개 (길게 늘여 쓰지 않는다)
+- 초등 5~6학년: 조금 더 풍부한 표현, 추론 가능한 사건 전개, 다양한 감정 표현`}
 
 5) 이전 쪽의 결과 때문에 다음 쪽 사건이 일어나도록 원인과 결과를 명확하게 연결한다.
 
@@ -735,6 +766,10 @@ app.post("/api/student-login", (req, res) => {
     number: req.body?.number,
     name: req.body?.name
   });
+  if (result.ok) {
+    const access = { role: "student", student: result.student };
+    schoolOf(access).students.add(usageKey(access));
+  }
 
   return res.status(result.ok ? 200 : 400).json(result);
 });
@@ -747,6 +782,34 @@ app.post("/api/admin-session", (req, res) => {
 
 app.post("/api/admin-logout", (req, res) => {
   return res.json(adminAccess.logout(req.body?.sessionToken));
+});
+
+// 관리자 전용 현황판: 그림 대기 줄과 오늘 학교별 사용량.
+app.post("/api/admin-stats", (req, res) => {
+  const access = adminAccess.verify(req.body?.sessionToken);
+  if (!access.ok || access.role !== "admin") {
+    return res.status(401).json({ error: "admin_required" });
+  }
+  const stats = today();
+  return res.json({
+    now: Date.now(),
+    serverStartedAt,
+    mock: MOCK_AI,
+    imageQueue: imageQueueStatus(),
+    limits: { storiesPerStudent: STORY_LIMIT_PER_STUDENT, imagesPerStudent: IMAGE_LIMIT_PER_STUDENT },
+    today: {
+      date: stats.date,
+      students: [...stats.schools.values()].reduce((sum, school) => sum + school.students.size, 0),
+      stories: stats.stories,
+      storyFailed: stats.storyFailed,
+      images: stats.images,
+      imageFailed: stats.imageFailed,
+      imageBusy: stats.imageBusy
+    },
+    schools: [...stats.schools.entries()]
+      .map(([school, value]) => ({ school, students: value.students.size, stories: value.stories, images: value.images }))
+      .sort((a, b) => b.students - a.students)
+  });
 });
 
 // 관리자 전용: 서버의 Gemini 키로 쓸 수 있는 모델 목록을 확인한다(모델 이름 점검용). 키 값은 돌려주지 않는다.
@@ -832,12 +895,13 @@ app.post("/api/story", async (req, res) => {
     if (MOCK_AI) {
       await mockDelay(1500, 3500);
       const name = selection.character?.name || "주인공";
+      countToday(req.access, "stories");
       return res.json({
         scenes: Array.from({ length: 6 }, (_, i) => `${name}의 시험용 이야기 ${i + 1}쪽입니다. 부하 시험 중이라 실제 AI 글이 아니에요.`),
         provider: "mock"
       });
     }
-    const prompt = buildPrompt(selection, req.body?.grade);
+    const prompt = buildPrompt(selection, req.body?.grade, req.access?.role === "student" ? req.access.student : null);
     let rawText;
     try {
       rawText = await provider.call(provider, prompt);
@@ -847,9 +911,11 @@ app.post("/api/story", async (req, res) => {
       rawText = await provider.call(provider, prompt);
     }
     const scenes = parseScenes(rawText);
+    countToday(req.access, "stories");
     return res.json({ scenes, provider: providerName in providers ? providerName : "gemini" });
   } catch (error) {
     console.error(error);
+    countToday(req.access, "storyFailed");
     if (key) usageOf(key).stories = Math.max(0, usageOf(key).stories - 1);
     const response = toProviderErrorResponse(error, "provider_failed");
     return res.status(response.statusCode).json(response.body);
@@ -889,6 +955,7 @@ app.post("/api/image", async (req, res) => {
     release = await acquireImageSlot();
   } catch (error) {
     imageStats.busyReturned += 1;
+    today().imageBusy += 1;
     const status = imageQueueStatus();
     return res.status(429).json({
       error: "image_busy",
@@ -910,10 +977,12 @@ app.post("/api/image", async (req, res) => {
     }
     imageStats.done += 1;
     imageStats.totalMs += Date.now() - startedAt;
+    countToday(req.access, "images");
     return res.json({ imageBase64: result.b64, mimeType: result.mimeType, prompt, provider: MOCK_AI ? "mock" : "gemini", model: geminiImageModel });
   } catch (error) {
     console.error(error);
     imageStats.failed += 1;
+    countToday(req.access, "imageFailed");
     if (key) usageOf(key).images = Math.max(0, usageOf(key).images - 1);
     if (isTransientProviderError(error)) {
       return res.status(429).json({

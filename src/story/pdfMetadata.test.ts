@@ -13,7 +13,7 @@ describe("buildStoryPdfMetadata", () => {
       })
     ).toEqual({
       title: "소녀 가야의 적벽강 모험",
-      schoolLabel: "금산교육지원청 찾아가는 AI동화 수업 · 초등 3~6학년",
+      schoolLabel: "금산교육지원청 찾아가는 AI동화 수업",
       filename: "M-01-story-2026-06-06.pdf"
     });
   });

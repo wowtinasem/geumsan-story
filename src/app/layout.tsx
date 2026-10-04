@@ -7,8 +7,8 @@ export const metadata: Metadata = {
     default: "금산 AI 동화 만들기",
     template: "%s | 금산 AI 동화 만들기"
   },
-  description: "금산교육지원청이 관내 초등학교로 찾아가는 AI 동화책 만들기 수업 앱입니다. 초등 3~6학년 학생이 주인공·배경·사건을 골라 6쪽 동화책을 만듭니다.",
-  keywords: ["금산교육지원청", "금산", "찾아가는 수업", "AI 동화", "동화 만들기", "초등학교"],
+  description: "금산교육지원청이 관내 초·중학교로 찾아가는 AI 동화책 만들기 수업 앱입니다. 학생이 주인공·배경·사건을 골라 6쪽 동화책을 만듭니다.",
+  keywords: ["금산교육지원청", "금산", "찾아가는 수업", "AI 동화", "동화 만들기", "초등학교", "중학교"],
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/images/ginseng-mascot.png",

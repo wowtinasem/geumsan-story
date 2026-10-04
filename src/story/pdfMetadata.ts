@@ -17,7 +17,7 @@ export function buildStoryPdfMetadata(input: StoryPdfMetadataInput) {
   return {
     // 내용에 맞춘 제목: "{호칭} {주인공}의 {장소} 모험" (호칭 예: 소녀, 할머니, 아기 로봇)
     title: `${genderLabel} ${input.characterName}의 ${place} 모험`,
-    schoolLabel: "금산교육지원청 찾아가는 AI동화 수업 · 초등 3~6학년",
+    schoolLabel: "금산교육지원청 찾아가는 AI동화 수업",
     filename: `${input.classId}-story-${date}.pdf`
   };
 }

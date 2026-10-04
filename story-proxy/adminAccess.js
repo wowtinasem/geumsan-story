@@ -35,6 +35,11 @@ export function readAdminCredentials(env = process.env) {
 }
 
 // 학생이 적은 값을 정리·검증한다. 올바르지 않으면 null.
+// 학교 이름이 "…중" 또는 "…중학교"로 끝나면 중학생 (예: 제원중, 추부중학교). "금산중앙초"는 초등.
+export function isMiddleSchool(school) {
+  return /중(학교)?$/.test(String(school || "").replace(/\s+/g, ""));
+}
+
 export function normalizeStudentInfo(input = {}) {
   const clean = (value, max) =>
     String(value ?? "")

@@ -34,7 +34,7 @@
 
 ## 시험 도구 — `tools/`
 - `tools/loadtest.mjs`: 가상 학생 N명 동시 시험. 먼저 `MOCK_AI=1`로 프록시를 3002번에 띄운다(비용 없음).
-  - PowerShell: `$env:PORT='3002'; $env:MOCK_AI='1'; node story-proxy/server.js`
+  - PowerShell(**story-proxy 폴더에서** 실행해야 .env가 읽힘): `cd story-proxy; $env:PORT='3002'; $env:MOCK_AI='1'; node server.js`
   - 실행: `N=60 node tools/loadtest.mjs` (기본 대상 http://localhost:3002)
 - `tools/realtest.mjs`: 운영 프록시에 실제 학생 1명(글 1번 + 그림 2장, 약 200원).
 
@@ -43,8 +43,8 @@
 - 화면 확인은 Edge 헤드리스 + CDP로 캡처한다(이 PC에 Playwright 없음).
 
 ## 남은 일 (2026-10-04 기준)
-- [ ] 10/14까지: 중학생(제원중·추부중·부리중) 입장 시 동화 글 수준 조정, PDF 표지 "초등" 표현 정리
-- [ ] 10/14까지: 관리자 화면에 그림 대기·실패·오늘 만든 수 표시 (`/api/health`의 `imageQueue` 사용)
+- [x] 중학생(학교명이 …중/…중학교) 동화 글 수준 조정, "초등" 표현 정리 (10/04)
+- [x] 관리자 현황판 `/story/admin` + `POST /api/admin-stats` (10/04)
 - [ ] 10/16까지: 첫 수업 기록으로 설정 다듬기
 - [ ] 11/3까지: 11/5(60명) 대비 최종 60명 시험
 - [ ] PDF 파일 이름에 학교·이름 넣기(패들렛 업로드용, 사용자 결정 대기)

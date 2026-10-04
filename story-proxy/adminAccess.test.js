@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createAdminAccessStore, hashPassword, normalizeStudentInfo, readAdminCredentials } from "./adminAccess.js";
+import { createAdminAccessStore, hashPassword, isMiddleSchool, normalizeStudentInfo, readAdminCredentials } from "./adminAccess.js";
 
 const credentials = {
   adminId: "admin-for-test",
@@ -196,5 +196,15 @@ describe("signed session tokens", () => {
     assert.equal(store.verify(sessionToken).ok, true);
     t += 2 * 60 * 60 * 1000;
     assert.equal(store.verify(sessionToken).ok, false);
+  });
+});
+
+describe("isMiddleSchool", () => {
+  it("treats names ending in 중 or 중학교 as middle schools", () => {
+    for (const school of ["제원중", "추부중학교", "부리 중학교", " 금산중 "]) assert.equal(isMiddleSchool(school), true, school);
+  });
+
+  it("keeps elementary schools (including 금산중앙초) as elementary", () => {
+    for (const school of ["금산중앙초", "금산중앙초등학교", "금산초", "", undefined]) assert.equal(isMiddleSchool(school), false, String(school));
   });
 });

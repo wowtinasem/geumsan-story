@@ -84,7 +84,6 @@ const defaultHairColor = hairColors[0];
 const savedStoriesKey = "geumsan-ai-story.savedStories.v1";
 const maxSavedStories = 8;
 const blockedCustomWords = ["바보", "죽", "살인", "폭력", "피", "혐오", "욕", "나쁜말"];
-const schoolLabel = "금산교육지원청 찾아가는 AI동화 수업 · 초등 3~6학년";
 
 function sanitizeCustomChoice(value: string) {
   return value
@@ -872,6 +871,7 @@ export function StoryKioskApp() {
   const [classId, setClassId] = useState("");
   const [classSessionToken, setClassSessionToken] = useState("");
   const [coverAuthor, setCoverAuthor] = useState("작가 : 관리자");
+  const [isAdmin, setIsAdmin] = useState(false);
   const [classLoginMessage, setClassLoginMessage] = useState("");
   const [classLoginPending, setClassLoginPending] = useState(false);
   const [character, setCharacter] = useState<CharacterChoice>(defaultCharacter);
@@ -1038,6 +1038,7 @@ export function StoryKioskApp() {
     setMusicState("paused");
     setClassId("");
     setClassSessionToken("");
+    setIsAdmin(false);
     setStudentNumber("");
     setStudentName("");
     setAdminMode(false);
@@ -1063,6 +1064,7 @@ export function StoryKioskApp() {
     const session = writeAdminSession({ role: "admin", adminId: result.adminId, sessionToken: result.sessionToken });
     setClassId(sessionLabel(session));
     setCoverAuthor(coverAuthorLine(session));
+    setIsAdmin(session.role === "admin");
     setClassSessionToken(result.sessionToken);
     setClassLoginMessage(result.message);
     setStep("attract");
@@ -1087,6 +1089,7 @@ export function StoryKioskApp() {
     const session = writeAdminSession({ role: "student", student: result.student, sessionToken: result.sessionToken });
     setClassId(sessionLabel(session));
     setCoverAuthor(coverAuthorLine(session));
+    setIsAdmin(session.role === "admin");
     setClassSessionToken(result.sessionToken);
     setClassLoginMessage(result.message);
     setStep("attract");
@@ -1124,6 +1127,7 @@ export function StoryKioskApp() {
 
       setClassId(sessionLabel(session));
       setCoverAuthor(coverAuthorLine(session));
+      setIsAdmin(session.role === "admin");
       setClassSessionToken(session.sessionToken);
       setStep("attract");
     });
@@ -1631,13 +1635,25 @@ export function StoryKioskApp() {
               </span>
             </div>
             {classId ? (
-              <button
-                type="button"
-                onClick={logOut}
-                className="absolute bottom-8 right-10 z-20 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[#73DFFF]/45 bg-[#101A38]/86 px-4 text-sm font-black text-[#DDFBFF] shadow-[0_0_18px_rgba(125,232,255,0.16)] active:scale-[0.98]"
-              >
-                <ArrowPathIcon className="h-4 w-4" /> 로그아웃
-              </button>
+              <span className="absolute bottom-8 right-10 z-20 flex gap-2">
+                {isAdmin ? (
+                  <a
+                    href="/story/admin"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[#FFB15D]/70 bg-[#101A38]/86 px-4 text-sm font-black text-[#FFE2C2] shadow-[0_0_18px_rgba(255,177,93,0.16)] active:scale-[0.98]"
+                  >
+                    현황판
+                  </a>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={logOut}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-[#73DFFF]/45 bg-[#101A38]/86 px-4 text-sm font-black text-[#DDFBFF] shadow-[0_0_18px_rgba(125,232,255,0.16)] active:scale-[0.98]"
+                >
+                  <ArrowPathIcon className="h-4 w-4" /> 로그아웃
+                </button>
+              </span>
             ) : null}
           </div>
         ) : (
