@@ -12,3 +12,11 @@ logs
 *.tsbuildinfo
 
 .vercel
+
+# 원본 소스 파일(영상·이미지)은 PC에만 보관. 앱에는 압축본(public/)만 들어간다.
+/001.mp4
+/002.mp4
+/title01.mp4
+/2.png
+/opengraph.png
+/금산교육지원청로고.png
