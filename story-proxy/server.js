@@ -472,13 +472,13 @@ ${isMiddle ? `- 중학생: 어린아이 말투(~했어요, ~했답니다)를 쓰
 
 // 그림 스타일 (앱에서 selection.artStyle로 id만 받는다. 모르는 값이면 기본 3D)
 const artStylePrompts = {
-  anim3d: "warm 3D animated feature film look, rounded toy-like characters, soft cinematic lighting, expressive faces, colorful magical atmosphere, high detail",
-  watercolor: "soft watercolor children's picture-book painting, gentle transparent washes and color blooms, delicate ink outlines, visible watercolor paper texture, light airy palette",
-  colorpencil: "hand-drawn colored pencil illustration, visible pencil strokes and paper grain, soft layered shading, cheerful bright colors, cozy handmade picture-book feel",
-  clay: "claymation style: characters, props, and scenery sculpted from colorful modeling clay, soft clay texture with subtle fingerprints, handmade miniature set, soft studio lighting",
-  papercut: "layered paper-cut collage illustration: scenery and characters made of cut colored paper shapes stacked in layers with soft drop shadows, craft paper textures, clean simple shapes",
-  oil: "oil painting picture-book illustration, rich textured brush strokes, warm glowing light, deep colors, painterly canvas texture",
-  crayon: "warm crayon drawing, waxy crayon strokes on slightly rough paper, cozy childlike hand-drawn feel, bright warm colors, simple friendly shapes"
+  anim3d: "a 3D computer-animated movie still: fully three-dimensional rendered characters and scenery with volume, depth, subsurface skin shading, soft global illumination and cinematic lighting, rounded toy-like proportions",
+  watercolor: "a traditional watercolor painting on textured cold-press paper: transparent watery washes, soft bleeding edges, color blooms and granulation, light pencil underdrawing, lots of white paper showing through; completely flat 2D, not 3D",
+  colorpencil: "a colored pencil drawing on paper: every surface is made of visible hatched pencil strokes, rough paper grain showing between strokes, hand-drawn outlines; completely flat 2D, not 3D, not painted",
+  clay: "a stop-motion claymation photograph: every character, plant, house, and the ground are physically sculpted from glossy colorful plasticine modeling clay with visible fingerprints and tool marks, photographed as a miniature tabletop set with shallow depth of field",
+  papercut: "a layered paper-cut craft artwork: every element is cut from flat sheets of colored construction paper, stacked in layers with visible cut edges and soft drop shadows between layers, simple flat shapes, no outlines, photographed from the front",
+  oil: "a classical oil painting on canvas: thick impasto brush strokes, visible canvas weave, rich blended colors, glowing warm light, painterly edges; 2D painting, not 3D render",
+  crayon: "a child-friendly wax crayon drawing on rough drawing paper: bold waxy crayon strokes, uneven coloring with paper texture showing through, simple shapes, bright warm colors; completely flat 2D, not 3D"
 };
 
 function buildImagePrompt(selection, scene, pageIndex) {
@@ -572,9 +572,10 @@ function buildImagePrompt(selection, scene, pageIndex) {
     ][Number(pageIndex)] || "show a moment of the story";
 
   return [
-    "Create one original children's storybook scene illustration.",
+    `ART STYLE (most important, applies to the whole image): ${artStylePrompts[selection.artStyle] || artStylePrompts.anim3d}.`,
+    "Create one original children's storybook scene illustration in exactly that art style.",
     "Output format: exactly ONE single continuous full-bleed illustration showing ONE moment, filling the whole canvas edge to edge. Never a comic page, never panels, grid, collage, split screen, diptych, triptych, storyboard, multiple frames, borders, gutters, or dividing lines; never repeat the same picture twice in one image; never a character turnaround or model sheet. The protagonist appears exactly once in the image.",
-    `Visual direction: ${artStylePrompts[selection.artStyle] || artStylePrompts.anim3d}, family friendly, no text, no logos, no copyrighted characters, no imitation of an existing studio, artist, or franchise. Use this same art style consistently on every page.`,
+    "Content rules: family friendly, no logos, no copyrighted characters, no imitation of an existing studio, artist, or franchise. Never write any words, letters, Korean characters, captions, or the story sentence inside the image.",
     "This request makes the picture for one page only (other pages are drawn separately). Maintain strict visual continuity with the other pages of the same book.",
     `Character bible: ${characterBible}. This is the single named protagonist${speciesNote}. Keep the exact same face shape, hairstyle, eye color, body proportions, outfit, accessories, colors, and facial features on every page.`,
     "Treat the character bible as a fixed character design: reproduce the protagonist's face, hairstyle, body proportions, and the exact same outfit identically on every page. Only the pose, action, expression, and scene change between pages.",
@@ -593,6 +594,7 @@ function buildImagePrompt(selection, scene, pageIndex) {
     `Setting: ${place}.`,
     `Story moment in Korean: ${scene}`,
     "Composition: one clear main action that matches this exact story moment, cozy emotion, child-safe, readable at kiosk distance.",
+    `Render the entire image strictly in this art style: ${artStylePrompts[selection.artStyle] || artStylePrompts.anim3d}. Do not mix in any other medium.`,
     "If the story moment mentions a choice, a sequence, or a before-and-after, still draw only one single moment in one single frame. Output format: exactly ONE single continuous full-bleed illustration showing ONE moment, filling the whole canvas edge to edge. Never a comic page, never panels, grid, collage, split screen, diptych, triptych, storyboard, multiple frames, borders, gutters, or dividing lines; never repeat the same picture twice in one image; never a character turnaround or model sheet. The protagonist appears exactly once in the image."
   ].join("\n");
 }
