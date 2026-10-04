@@ -397,7 +397,9 @@ ${isMiddle ? `- 중학생: 어린아이 말투(~했어요, ~했답니다)를 쓰
 - 비밀을 지켜 주기로 함
 - 다른 사람을 돕게 됨
 
-18) 등장인물을 다양하게 구성한다.
+18) 이야기의 시대는 오늘날(현재)이다. 마을 사람과 가족은 요즘 옷차림과 생활을 한다. 한복은 명절(설날·추석 등) 장면에서만 입는다. 역사 속 인물이나 시간여행은 이야기에 꼭 필요할 때만 쓴다.
+
+18-1) 등장인물을 다양하게 구성한다.
 항상 또래 친구만 등장시키지 않는다.
 예시:
 - 할머니
@@ -533,6 +535,20 @@ function buildImagePrompt(selection, scene, pageIndex) {
     consistencyLine = "Do not redesign the protagonist between pages. Do not change the protagonist into a different animal, different age, different costume, or different color palette.";
   }
 
+  // 시대는 오늘날. 장면 글에 명절이 나오면 화려한 한복을, 역사 인물·시간여행이 나오면 그 인물에게만 옛날 옷을 허용한다.
+  const sceneText = String(scene || "");
+  const isHoliday = /명절|설날|추석|한가위|세배|정월 대보름|단오|한복/.test(sceneText);
+  const isHistorical = /조선|고려|삼국|옛날 사람|역사 속|과거로|시간 ?여행|의병|장군|선비|임진왜란/.test(sceneText);
+  const eraLine = isHoliday
+    ? "Era: present-day Korea during a traditional holiday. Characters may wear colorful, festive, modern-style hanbok for the holiday; everything else (buildings, objects, other people) stays present-day."
+    : [
+        "Era: present-day Korea (2020s). The protagonist and all supporting characters — children, parents, grandparents, villagers, farmers, researchers — wear modern everyday clothing (t-shirts, hoodies, jackets, cardigans, work vests, jeans, trousers, sneakers).",
+        isHistorical
+          ? "Only a historical figure explicitly mentioned in the story moment may wear period clothing; everyone else wears modern clothes."
+          : "Do not dress anyone in traditional hanbok, Joseon-era clothing, gat hats, or old-fashioned costumes.",
+        "Grandparents wear modern clothes like cardigans, blouses, vests, and slacks, not hanbok."
+      ].join(" ");
+
   const pageNum = Number(pageIndex) + 1;
   const flowRoleEn =
     [
@@ -557,6 +573,7 @@ function buildImagePrompt(selection, scene, pageIndex) {
     "Supporting characters may appear only when needed by the story, but keep them small and secondary. They must not distract from, replace, duplicate, or be confused with the protagonist.",
     "Do not include Geumsami, the app narrator mascot (a cute ginseng-root character with green leaves and red berries on its head, a green scarf, green vest, brown shorts and a brown satchel), logos, watermark, text labels, captions, or any extra sticker-like overlay inside the generated illustration.",
     `Setting bible: ${settingBible[placeKey] || settingBible.village}. Keep the same world design, palette, lighting mood, and material style across pages.`,
+    eraLine,
     ...(placeKey === "chilbaek" ? ["Keep the mood respectful and quiet; no party, no balloons, no playful chaos."] : []),
     "Use a consistent square storybook composition: protagonist clearly visible in the foreground or middle ground, clear foreground action, soft background depth, no extreme camera angle changes, no cropping that makes the character unrecognizable.",
     `This is page ${pageNum} of a 6-page continuous story; this page should ${flowRoleEn}. Illustrate the specific moment described below with its own distinct action, pose, expression, composition, and background detail.`,
