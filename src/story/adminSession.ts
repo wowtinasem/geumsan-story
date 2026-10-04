@@ -1,4 +1,4 @@
-// 입장 방식: 학생(학교명·학년·번호·이름) 또는 관리자(비밀번호).
+// 입장 방식: 학생(학교명·학년·반·번호·이름) 또는 관리자(비밀번호).
 // 토큰은 서버(story-proxy)만 발급한다. 브라우저는 발급받은 토큰을 보관만 한다.
 export const adminSessionStorageKey = "geumsan-story.adminSession.v1";
 
@@ -10,6 +10,7 @@ const storyProxyUrl = process.env.NEXT_PUBLIC_STORY_PROXY_URL?.replace(/\/$/, ""
 export type StudentInfo = {
   school: string;
   grade: number;
+  classNo?: number; // 반 (예전 로그인 정보에는 없을 수 있다)
   number: number;
   name: string;
 };
@@ -34,8 +35,8 @@ type AdminAuthResponse = {
 // 화면 위쪽·PDF 아래쪽에 보이는 이름표. 예: "금산초 4학년 12번 홍길동"
 export function sessionLabel(session: Pick<AdminSession, "role" | "student">) {
   if (session.role === "student" && session.student) {
-    const { school, grade, number, name } = session.student;
-    return `${school} ${grade}학년 ${number}번 ${name}`;
+    const { school, grade, classNo, number, name } = session.student;
+    return `${school} ${grade}학년 ${classNo ? `${classNo}반 ` : ""}${number}번 ${name}`;
   }
   return "관리자";
 }
@@ -128,17 +129,27 @@ export async function requestAdminLogin(password: string): Promise<AdminAuthResp
 export async function requestStudentLogin(input: {
   school: string;
   grade: string;
+  classNo: string;
   number: string;
   name: string;
 }): Promise<AdminAuthResponse> {
   const school = input.school.trim();
   const name = input.name.trim();
-  if (!school || !input.grade.trim() || !input.number.trim() || !name) {
-    return { ok: false, message: "학교명, 학년, 번호, 이름을 모두 적어 주세요.", reason: "missing_input" };
+  if (!school) {
+    return { ok: false, message: "학교를 골라 주세요.", reason: "missing_input" };
+  }
+  if (!input.grade.trim() || !input.classNo.trim() || !input.number.trim() || !name) {
+    return { ok: false, message: "학년, 반, 번호, 이름을 모두 적어 주세요.", reason: "missing_input" };
   }
 
   try {
-    return await postAdmin("/api/student-login", { school, grade: input.grade.trim(), number: input.number.trim(), name });
+    return await postAdmin("/api/student-login", {
+      school,
+      grade: input.grade.trim(),
+      classNo: input.classNo.trim(),
+      number: input.number.trim(),
+      name
+    });
   } catch {
     return networkError;
   }
@@ -200,6 +211,7 @@ export type RestartRequest = {
   id: string;
   school: string;
   grade: number;
+  classNo?: number;
   number: number;
   name: string;
   requestedAt: number;

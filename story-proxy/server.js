@@ -34,7 +34,7 @@ const IMAGE_MAX_QUEUE = Number(process.env.IMAGE_MAX_QUEUE || 400);
 // 한 요청이 대기 줄에서 기다리는 최대 시간. 넘으면 "잠시 뒤 다시"로 돌려보내고 브라우저가 자동으로 다시 줄을 선다.
 // (Render 앞단 Cloudflare가 아주 긴 요청을 끊을 수 있어 한 요청은 짧게 유지한다.)
 const IMAGE_QUEUE_WAIT_MS = Number(process.env.IMAGE_QUEUE_WAIT_MS || 40000);
-// 학생 한 명(학교·학년·번호·이름)이 쓸 수 있는 최대 횟수. 관리자는 제한 없음.
+// 학생 한 명(학교·학년·반·번호·이름)이 쓸 수 있는 최대 횟수. 관리자는 제한 없음.
 // 학생 한 명이 기본으로 만들 수 있는 양. "다시 만들기"는 관리자가 허락할 때마다 같은 양을 더 준다.
 const STORY_LIMIT_PER_STUDENT = Number(process.env.STORY_LIMIT_PER_STUDENT || 1); // 동화 1편
 const IMAGE_LIMIT_PER_STUDENT = Number(process.env.IMAGE_LIMIT_PER_STUDENT || 8); // 그림 6장 + 여유 2장
@@ -121,8 +121,8 @@ function imageQueueStatus() {
 const usageCounters = new Map();
 function usageKey(access) {
   if (!access || access.role !== "student" || !access.student) return null;
-  const { school, grade, number, name } = access.student;
-  return `${sameSchoolKey(school)}|${grade}|${number}|${String(name).replace(/\s+/g, "")}`;
+  const { school, grade, classNo, number, name } = access.student;
+  return `${sameSchoolKey(school)}|${grade}|${classNo ?? ""}|${number}|${String(name).replace(/\s+/g, "")}`;
 }
 // "금산 초등학교", "금산초등학교", "금산초"를 같은 학교로 본다 (중학교도 같은 방식)
 function sameSchoolKey(school) {
@@ -779,11 +779,12 @@ app.post("/api/admin-login", (req, res) => {
   return res.status(result.ok ? 200 : 403).json(result);
 });
 
-// 학생 입장: 학교명·학년·번호·이름으로 학생 세션 토큰을 받는다.
+// 학생 입장: 학교명·학년·반·번호·이름으로 학생 세션 토큰을 받는다.
 app.post("/api/student-login", (req, res) => {
   const result = adminAccess.studentLogin({
     school: req.body?.school,
     grade: req.body?.grade,
+    classNo: req.body?.classNo,
     number: req.body?.number,
     name: req.body?.name
   });
@@ -930,7 +931,7 @@ app.post(["/api/class-login", "/api/class-reset"], (req, res) => {
   return res.status(410).json({
     ok: false,
     reason: "class_access_retired",
-    message: "수업 아이디는 더 이상 사용하지 않아요. 첫 화면에서 학교명·학년·번호·이름을 적어 주세요."
+    message: "수업 아이디는 더 이상 사용하지 않아요. 첫 화면에서 학교명·학년·반·번호·이름을 적어 주세요."
   });
 });
 

@@ -83,7 +83,8 @@ function RestartRequests({
             <li key={request.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#111A39] px-4 py-3">
               <div>
                 <div className="text-lg font-black">
-                  {request.school} {request.grade}학년 {request.number}번 {request.name}
+                  {request.school} {request.grade}학년 {request.classNo ? `${request.classNo}반 ` : ""}
+                  {request.number}번 {request.name}
                 </div>
                 <div className="text-sm text-[#C9E9F5]">
                   {minutesAgo(request.requestedAt, now)} 요청 · 지금까지 동화 {request.stories}편 · 그림 {request.images}장

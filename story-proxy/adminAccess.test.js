@@ -118,7 +118,7 @@ describe("password-only admin login", () => {
 });
 
 describe("student login", () => {
-  const student = { school: "금산초", grade: "4", number: "12", name: "홍길동" };
+  const student = { school: "금산초", grade: "4", classNo: "2", number: "12", name: "홍길동" };
 
   it("issues a student session for complete info", () => {
     const store = createAdminAccessStore({ credentials });
@@ -126,7 +126,7 @@ describe("student login", () => {
 
     assert.equal(result.ok, true);
     assert.match(result.sessionToken, /^geumsan-student-/);
-    assert.deepEqual(result.student, { school: "금산초", grade: 4, number: 12, name: "홍길동" });
+    assert.deepEqual(result.student, { school: "금산초", grade: 4, classNo: 2, number: 12, name: "홍길동" });
 
     const verified = store.verify(result.sessionToken);
     assert.equal(verified.ok, true);
@@ -141,6 +141,8 @@ describe("student login", () => {
     assert.equal(store.studentLogin({ ...student, name: "" }).reason, "invalid_student");
     assert.equal(store.studentLogin({ ...student, grade: "7" }).reason, "invalid_student");
     assert.equal(store.studentLogin({ ...student, number: "0" }).reason, "invalid_student");
+    assert.equal(store.studentLogin({ ...student, classNo: "" }).reason, "invalid_student");
+    assert.equal(store.studentLogin({ ...student, classNo: "21" }).reason, "invalid_student");
     assert.equal(store.studentLogin({ ...student, number: "삼" }).reason, "invalid_student");
   });
 
@@ -150,9 +152,10 @@ describe("student login", () => {
   });
 
   it("strips symbols and trims long values", () => {
-    assert.deepEqual(normalizeStudentInfo({ school: "<금산>초등학교!!", grade: 5, number: 3, name: "김하늘<script>" }), {
+    assert.deepEqual(normalizeStudentInfo({ school: "<금산>초등학교!!", grade: 5, classNo: 1, number: 3, name: "김하늘<script>" }), {
       school: "금산초등학교",
       grade: 5,
+      classNo: 1,
       number: 3,
       name: "김하늘script"
     });
@@ -160,7 +163,7 @@ describe("student login", () => {
 });
 
 describe("signed session tokens", () => {
-  const student = { school: "금산초", grade: "4", number: "12", name: "홍길동" };
+  const student = { school: "금산초", grade: "4", classNo: "2", number: "12", name: "홍길동" };
 
   it("stay valid across a server restart with the same secret", () => {
     const first = createAdminAccessStore({ credentials, secret: "same-secret" });

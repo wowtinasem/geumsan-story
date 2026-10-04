@@ -73,13 +73,30 @@ type RestartPhase = "idle" | "confirm" | "pending" | "denied" | "error";
 // 예전 버전이 localStorage에 그림까지 넣던 저장 키. 앱을 열 때 지운다.
 const legacySavedStoriesKey = "geumsan-ai-story.savedStories.v1";
 
+const schoolOptions = {
+  초등학교: [
+    "금산초등학교",
+    "금산중앙초등학교",
+    "금산동초등학교",
+    "군북초등학교",
+    "금성초등학교",
+    "용문초등학교",
+    "진산초등학교",
+    "추부초등학교",
+    "드림초등학교"
+  ],
+  중학교: ["제원중학교", "추부중학교", "부리중학교"]
+};
+const allSchoolOptions = [...schoolOptions.초등학교, ...schoolOptions.중학교];
+const directSchoolValue = "__direct";
+
 function workOwnerOf(session: Pick<AdminSession, "role" | "student"> | null) {
   if (!session) return "";
   if (session.role === "student" && session.student) {
-    const { school, grade, number, name } = session.student;
+    const { school, grade, classNo, number, name } = session.student;
     // 서버(usageKey)와 같은 규칙: 띄어쓰기와 "초등학교/초", "중학교/중" 차이는 같은 학생으로 본다.
     const schoolKey = school.replace(/\s+/g, "").replace(/초등학교$/, "초").replace(/중학교$/, "중");
-    return `student:${schoolKey}|${grade}|${number}|${name.replace(/\s+/g, "")}`;
+    return `student:${schoolKey}|${grade}|${classNo ?? ""}|${number}|${name.replace(/\s+/g, "")}`;
   }
   return "admin";
 }
@@ -116,6 +133,15 @@ function sanitizeCustomChoice(value: string) {
     .replace(/[^\u3131-\u318e\uac00-\ud7a3a-zA-Z0-9 .,!?~\-]/g, "")
     .replace(/\s+/g, " ")
     .trim()
+    .slice(0, 24);
+}
+
+// 입력 중 값: 앞뒤 공백을 지우지 않는다(지우면 띄어쓰기를 칠 수 없다). 고를 때 sanitizeCustomChoice로 다듬는다.
+function sanitizeTypingChoice(value: string) {
+  return value
+    .replace(/[^\u3131-\u318e\uac00-\ud7a3a-zA-Z0-9 .,!?~\-]/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/^\s+/, "")
     .slice(0, 24);
 }
 
@@ -830,6 +856,9 @@ export function StoryKioskApp() {
   // 첫 화면 입장 정보. 학교명·학년은 로그아웃해도 남겨 둬서 같은 반 다음 학생이 이어 쓰기 쉽게 한다.
   const [studentSchool, setStudentSchool] = useState("");
   const [studentGrade, setStudentGrade] = useState("");
+  const [studentClass, setStudentClass] = useState("");
+  // 학교 목록에 없는 학교를 직접 적는 중인지
+  const [schoolDirect, setSchoolDirect] = useState(false);
   const [studentNumber, setStudentNumber] = useState("");
   const [studentName, setStudentName] = useState("");
   const [adminMode, setAdminMode] = useState(false);
@@ -1163,6 +1192,7 @@ export function StoryKioskApp() {
     const result = await requestStudentLogin({
       school: studentSchool,
       grade: studentGrade,
+      classNo: studentClass,
       number: studentNumber,
       name: studentName
     });
@@ -1637,7 +1667,7 @@ export function StoryKioskApp() {
                       돌아가기
                     </button>
                   </div>
-                  {classLoginMessage ? <p className="text-xs font-black text-[#FFD073]">{classLoginMessage}</p> : null}
+                  {classLoginMessage ? <p className="text-center text-sm font-black text-[#FFD073]">{classLoginMessage}</p> : null}
                 </form>
               ) : (
                 <form
@@ -1647,19 +1677,60 @@ export function StoryKioskApp() {
                   }}
                   className="grid w-full gap-2 rounded-[20px] border border-[#FFB15D]/45 bg-[#0B1029]/75 px-4 py-3 text-left shadow-[0_14px_36px_rgba(0,0,0,0.45)] backdrop-blur-md"
                 >
-                  {titlePortrait ? null : <p className="text-sm font-black text-[#FFE9B0]">나를 소개해요</p>}
+                  {titlePortrait ? null : <p className="text-center text-xl font-black text-[#FFE9B0]">나를 소개해요</p>}
                   <label className="grid gap-0.5 text-xs font-black text-[#D4F5FF]">
                     <span className={titlePortrait ? "sr-only" : ""}>학교명</span>
+                    <select
+                      name="school-select"
+                      value={
+                        schoolDirect || (studentSchool && !allSchoolOptions.includes(studentSchool))
+                          ? directSchoolValue
+                          : studentSchool
+                      }
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        if (value === directSchoolValue) {
+                          setSchoolDirect(true);
+                          setStudentSchool("");
+                        } else {
+                          setSchoolDirect(false);
+                          setStudentSchool(value);
+                        }
+                      }}
+                      className={[
+                        "min-h-10 w-full min-w-0 rounded-xl border-2 border-[#73DFFF]/30 bg-[#151F41]/90 px-3 text-base font-black outline-none focus:border-[#FFB15D]",
+                        studentSchool || schoolDirect ? "text-white" : "text-[#D4F5FF]/45"
+                      ].join(" ")}
+                    >
+                      <option value="" disabled className="bg-[#151F41] text-[#D4F5FF]">
+                        학교를 골라 주세요
+                      </option>
+                      {Object.entries(schoolOptions).map(([group, names]) => (
+                        <optgroup key={group} label={group} className="bg-[#0B1029] text-[#FFE9B0]">
+                          {names.map((name) => (
+                            <option key={name} value={name} className="bg-[#151F41] text-white">
+                              {name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                      <option value={directSchoolValue} className="bg-[#151F41] text-white">
+                        직접 입력
+                      </option>
+                    </select>
+                  </label>
+                  {schoolDirect || (studentSchool && !allSchoolOptions.includes(studentSchool)) ? (
                     <input
                       name="school"
                       autoComplete="off"
-                      placeholder={titlePortrait ? "학교명 (예: 금산초등학교)" : "예: 금산초등학교"}
+                      autoFocus
+                      placeholder="학교명을 직접 적어 주세요 (예: 금산초등학교)"
                       value={studentSchool}
-                      onChange={(event) => setStudentSchool(sanitizeFeatureText(event.target.value).slice(0, 20))}
+                      onChange={(event) => setStudentSchool(sanitizeFeatureText(event.target.value).replace(/^\s+/, "").slice(0, 20))}
                       className="min-h-10 w-full min-w-0 rounded-xl border-2 border-[#73DFFF]/30 bg-[#151F41]/90 px-3 text-base font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
                     />
-                  </label>
-                  <div className="grid grid-cols-[1fr_1fr_2fr] gap-2">
+                  ) : null}
+                  <div className="grid grid-cols-[1fr_1fr_1fr_2fr] gap-2">
                     <label className="grid gap-0.5 text-xs font-black text-[#D4F5FF]">
                       <span className={titlePortrait ? "sr-only" : ""}>학년</span>
                       <input
@@ -1669,6 +1740,18 @@ export function StoryKioskApp() {
                         placeholder={titlePortrait ? "학년" : "4"}
                         value={studentGrade}
                         onChange={(event) => setStudentGrade(event.target.value.replace(/[^1-6]/g, "").slice(0, 1))}
+                        className="min-h-10 w-full min-w-0 rounded-xl border-2 border-[#73DFFF]/30 bg-[#151F41]/90 px-3 text-base font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
+                      />
+                    </label>
+                    <label className="grid gap-0.5 text-xs font-black text-[#D4F5FF]">
+                      <span className={titlePortrait ? "sr-only" : ""}>반</span>
+                      <input
+                        name="class"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder={titlePortrait ? "반" : "2"}
+                        value={studentClass}
+                        onChange={(event) => setStudentClass(event.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
                         className="min-h-10 w-full min-w-0 rounded-xl border-2 border-[#73DFFF]/30 bg-[#151F41]/90 px-3 text-base font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
                       />
                     </label>
@@ -1699,7 +1782,7 @@ export function StoryKioskApp() {
                   <button type="submit" disabled={classLoginPending} className="mt-0.5 min-h-11 rounded-xl border-2 border-[#FFB15D] bg-[#F0633C] px-4 text-base font-black text-white shadow-[0_0_20px_rgba(240,99,60,0.26)] active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#6B5C72]">
                     {classLoginPending ? "확인 중" : "동화 만들기 시작"}
                   </button>
-                  {classLoginMessage ? <p className="text-xs font-black text-[#FFD073]">{classLoginMessage}</p> : null}
+                  {classLoginMessage ? <p className="text-center text-sm font-black text-[#FFD073]">{classLoginMessage}</p> : null}
                 </form>
               )}
             </div>
@@ -1832,7 +1915,7 @@ export function StoryKioskApp() {
                       <p className="text-sm font-black text-[#FFE9B0]">이름</p>
                       <input
                         value={heroName}
-                        onChange={(event) => setHeroName(sanitizeCustomChoice(event.target.value))}
+                        onChange={(event) => setHeroName(sanitizeTypingChoice(event.target.value))}
                         maxLength={12}
                         placeholder="예: 가야"
                         className="min-h-12 w-full rounded-xl border border-[#73DFFF]/25 bg-[#151F41] px-4 text-base font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
@@ -2005,7 +2088,7 @@ export function StoryKioskApp() {
                       <div className="grid grid-cols-[1fr_auto] gap-2">
                         <input
                           value={customTrait}
-                          onChange={(event) => setCustomTrait(sanitizeCustomChoice(event.target.value))}
+                          onChange={(event) => setCustomTrait(sanitizeTypingChoice(event.target.value))}
                           onKeyDown={(event) => {
                             if (event.key === "Enter") applyCustomTrait();
                           }}
@@ -2051,10 +2134,10 @@ export function StoryKioskApp() {
                     </div>
                     <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                       {[
-                        ["opening", "발단", eventGroups.opening],
-                        ["development", "전개", eventGroups.development],
-                        ["climax", "절정", eventGroups.climax],
-                        ["ending", "결말", eventGroups.ending]
+                        ["opening", "발단(기)", eventGroups.opening],
+                        ["development", "전개(승)", eventGroups.development],
+                        ["climax", "절정(전)", eventGroups.climax],
+                        ["ending", "결말(결)", eventGroups.ending]
                       ].map(([key, title, list]) => (
                         <div key={key as string} className="rounded-2xl border border-[#73DFFF]/20 bg-[#0B1029]/72 p-2">
                           <p className="mb-1 text-xs font-black text-[#D4F5FF]">{title as string}</p>
@@ -2082,7 +2165,7 @@ export function StoryKioskApp() {
                               value={customEvents[key as keyof StorySelection["events"]]}
                               onChange={(event) => {
                                 const eventKey = key as keyof StorySelection["events"];
-                                const value = sanitizeCustomChoice(event.target.value);
+                                const value = sanitizeTypingChoice(event.target.value);
                                 setCustomEvents((current) => ({ ...current, [eventKey]: value }));
                               }}
                               onKeyDown={(event) => {

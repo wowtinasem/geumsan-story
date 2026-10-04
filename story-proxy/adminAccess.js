@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 // 접근 방식 두 가지.
-// 1) 학생: 학교명·학년·번호·이름을 적으면 서버가 학생 세션 토큰을 발급한다(비밀번호 없음).
+// 1) 학생: 학교명·학년·반·번호·이름을 적으면 서버가 학생 세션 토큰을 발급한다(비밀번호 없음).
 // 2) 관리자: 비밀번호로 입장한다. 자격증명은 코드에 두지 않는다.
 //    관리자 환경변수가 없으면 관리자 로그인과 학생 입장이 모두 막힌다(fail-closed).
 const sessionTtlMs = 12 * 60 * 60 * 1000;
@@ -50,12 +50,14 @@ export function normalizeStudentInfo(input = {}) {
   const school = clean(input.school, 20);
   const name = clean(input.name, 10);
   const grade = Number(String(input.grade ?? "").trim());
+  const classNo = Number(String(input.classNo ?? "").trim());
   const number = Number(String(input.number ?? "").trim());
 
   if (!school || !name) return null;
   if (!Number.isInteger(grade) || grade < 1 || grade > 6) return null;
+  if (!Number.isInteger(classNo) || classNo < 1 || classNo > 20) return null;
   if (!Number.isInteger(number) || number < 1 || number > 99) return null;
-  return { school, grade, number, name };
+  return { school, grade, classNo, number, name };
 }
 
 // 세션 토큰은 서버 서명이 붙은 자체 증명 토큰이다: geumsan-{역할}-{내용}.{서명}
@@ -172,7 +174,7 @@ export function createAdminAccessStore({
       return {
         ok: false,
         reason: "invalid_student",
-        message: "학교명, 학년(1~6), 번호(1~99), 이름을 모두 바르게 적어 주세요."
+        message: "학교명, 학년(1~6), 반(1~20), 번호(1~99), 이름을 모두 바르게 적어 주세요."
       };
     }
 
