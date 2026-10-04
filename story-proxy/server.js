@@ -263,7 +263,15 @@ function buildPrompt(selection, grade, student) {
   const placeName = selection.place?.name || "평화로운 마을";
   // 사건 보기("작은 빛을 발견했어요")는 동화 말투(해요체)와 같아 그대로 붙여 넣기 쉽다.
   // 소재로만 쓰도록 끝맺음을 평서형으로 바꿔 넘긴다("작은 빛을 발견했다").
-  const asTopic = (label) => String(label || "").replace(/[.!?\s]+$/, "").replace(/(어요|아요)$/, "다").trim();
+  // 거친 소재는 순하게 바꿔 넘긴다(동화 안에 그 낱말이 남지 않게).
+  const asTopic = (label) =>
+    String(label || "")
+      .replace(/[.!?\s]+$/, "")
+      .replace(/(어요|아요)$/, "다")
+      .replace(/복수/g, "다시 겨루기")
+      .replace(/싸웠/g, "다퉜")
+      .replace(/싸움/g, "다툼")
+      .trim();
   const opening = asTopic(events.opening?.label);
   const development = asTopic(events.development?.label);
   const climax = asTopic(events.climax?.label);

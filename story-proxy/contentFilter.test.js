@@ -12,7 +12,7 @@ describe("contentFilter", () => {
   });
 
   it("keeps ordinary story words", () => {
-    for (const text of ["새끼 고양이", "시바견 콩이", "피아노", "피자", "칼로리", "죽순", "하늘", "용감한", "금산 하늘물빛정원", "엉뚱한"]) {
+    for (const text of ["새끼 고양이", "시바견 콩이", "피아노", "피자", "칼로리", "죽순", "하늘", "용감한", "금산 하늘물빛정원", "엉뚱한", "꼼꼼한 남자 어린이", "불이 꺼져 버렸어요", "위기가 닥쳐왔어요", "엄마를 졸라 산 인형", "나비의 변태 과정", "송편 반죽"]) {
       assert.equal(containsBlockedWord(text), false, text);
     }
   });
