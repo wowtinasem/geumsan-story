@@ -2,7 +2,7 @@
 // 지금 쓰는 기기에 맞춰 다운로드 폴더 찾는 순서를 보여 준다.
 
 // 수업용 패들렛 주소. 바꾸려면 이 값만 고치고 배포한다.
-export const padletUrl = "";
+export const padletUrl = "https://padlet.com/dream4325/_-s0246akz2pa3rps68ms5";
 
 export type DeviceKind = "ipad" | "iphone" | "android" | "chromebook" | "windows" | "mac" | "other";
 
