@@ -36,6 +36,7 @@ import { isGeneratedSceneImage } from "./imageGeneration";
 import { checkProxyHealth, generateSceneImage, generateStory, localStory } from "./storyEngine";
 import { buildStoryVideo } from "./storyVideo";
 import { clearWork, loadWork, pruneOldWorks, saveWork } from "./workStore";
+import { detectDevice, deviceNames, folderSteps, padletUploadSteps, padletUrl } from "./downloadHelp";
 import {
   defaultMusicGenreId,
   getMusicGenre,
@@ -89,6 +90,34 @@ const schoolOptions = {
 };
 const allSchoolOptions = [...schoolOptions.초등학교, ...schoolOptions.중학교];
 const directSchoolValue = "__direct";
+
+function fileOwnerOf(session: Pick<AdminSession, "role" | "student"> | null) {
+  if (session?.role !== "student" || !session.student) return "";
+  const { school, grade, classNo, number, name } = session.student;
+  const shortSchool = school.replace(/\s+/g, "").replace(/초등학교$/, "초").replace(/중학교$/, "중");
+  return `${shortSchool}_${grade}-${classNo ?? 0}-${number}_${name}`;
+}
+
+// 패들렛 바로가기 단추 (주소가 아직 없으면 눌러도 안내만 한다)
+function PadletButton({ className = "" }: { className?: string }) {
+  if (!padletUrl) {
+    return (
+      <span className={`inline-flex min-h-12 items-center justify-center rounded-2xl border-2 border-dashed border-[#73DFFF]/40 px-4 text-sm font-black text-[#D4F5FF]/70 ${className}`}>
+        패들렛 바로가기 (주소 준비 중)
+      </span>
+    );
+  }
+  return (
+    <a
+      href={padletUrl}
+      target="_blank"
+      rel="noreferrer"
+      className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border-2 border-[#FFB15D] bg-[#7B3FE4] px-5 text-base font-black text-white shadow-[0_0_20px_rgba(123,63,228,0.35)] active:scale-[0.98] ${className}`}
+    >
+      📌 패들렛 바로가기
+    </a>
+  );
+}
 
 function workOwnerOf(session: Pick<AdminSession, "role" | "student"> | null) {
   if (!session) return "";
@@ -592,6 +621,12 @@ function StoryTextPanel({
           다음 쪽 <ArrowRightIcon className="h-5 w-5" />
         </SecondaryButton>
       </div>
+      {pageIndex === story.pages.length - 1 ? (
+        <div className="grid gap-1 rounded-2xl border border-[#FFB15D]/45 bg-[#2E2442]/70 p-2 text-center">
+          <p className="text-sm font-black text-[#FFE9B0]">마지막 쪽이에요! PDF를 저장한 뒤 패들렛에 올려 친구들과 나눠요.</p>
+          <PadletButton className="w-full" />
+        </div>
+      ) : null}
       {!imageReady ? (
         <div className="flex items-center justify-center gap-2 rounded-2xl border border-[#73DFFF]/25 bg-[#101A38]/72 py-3 text-sm font-black text-[#D4F5FF]">
           <SparklesIcon className="h-4 w-4 animate-pulse" /> 이미지 생성 중...
@@ -846,7 +881,7 @@ async function generateStoryPdf({
     commitPage();
   }
 
-  pdf.save(filename);
+  return new File([pdf.output("blob")], filename, { type: "application/pdf" });
 }
 
 export function StoryKioskApp() {
@@ -900,6 +935,10 @@ export function StoryKioskApp() {
   const [workOwner, setWorkOwner] = useState("");
   const [hasWork, setHasWork] = useState(false);
   const [restartPhase, setRestartPhase] = useState<RestartPhase>("idle");
+  // PDF 저장 뒤 안내 창 (파일 이름, 바로 보기용 주소)
+  const [pdfDone, setPdfDone] = useState<{ file: File; url: string } | null>(null);
+  const [showFolderSteps, setShowFolderSteps] = useState(false);
+  const [fileOwner, setFileOwner] = useState("");
   // 사건 화면에서 "이미 만들었어요"로 막혀 요청하는 경우(이 기기에 남은 동화가 없을 때)
   const [restartFromLimit, setRestartFromLimit] = useState(false);
   const [customTrait, setCustomTrait] = useState("");
@@ -957,9 +996,10 @@ export function StoryKioskApp() {
         place: place.name,
         gender,
         age: heroAgeId,
-        createdAt: new Date()
+        createdAt: new Date(),
+        ownerLabel: fileOwner
       }),
-    [heroName, place.name, gender, heroAgeId]
+    [heroName, place.name, gender, heroAgeId, fileOwner]
   );
   const currentStepIndex = stepOrder.indexOf(step);
   const currentSceneImage = step === "result" ? sceneImages[pageIndex] || fallbackSceneImage(sceneImages, pageIndex) : undefined;
@@ -1044,6 +1084,7 @@ export function StoryKioskApp() {
   // 로그인한 사람의 보관된 동화를 불러온다. 없으면 빈 상태로 시작한다.
   async function openWorkFor(session: Pick<AdminSession, "role" | "student">) {
     const owner = workOwnerOf(session);
+    setFileOwner(fileOwnerOf(session));
     resetWork();
     setRestartPhase("idle");
     setWorkOwner(owner);
@@ -1153,6 +1194,7 @@ export function StoryKioskApp() {
     setIsAdmin(false);
     resetWork();
     setWorkOwner("");
+    setFileOwner("");
     setRestartPhase("idle");
     setStudentNumber("");
     setStudentName("");
@@ -1368,7 +1410,7 @@ export function StoryKioskApp() {
   }
   async function printStorybook() {
     const imagesForPrint = printableImagesReady ? sceneImages : await generatePrintableImages();
-    await generateStoryPdf({
+    const file = await generateStoryPdf({
       title: pdfMetadata.title,
       author: coverAuthor,
       footer: `배경: ${place.name}`,
@@ -1376,6 +1418,30 @@ export function StoryKioskApp() {
       images: imagesForPrint,
       filename: pdfMetadata.filename
     });
+    if (!file) {
+      setImageGenerationMessage("PDF를 만들지 못했어요. 잠시 뒤 다시 눌러 주세요.");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    saveBlobUrl(url, file.name);
+    setPdfDone((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return { file, url };
+    });
+    setShowFolderSteps(false);
+  }
+
+  // 태블릿: 공유 창으로 "파일에 저장"이나 다른 앱(패들렛 앱 등)으로 바로 보낼 수 있다
+  const canShareFile = Boolean(
+    pdfDone && typeof navigator !== "undefined" && navigator.canShare?.({ files: [pdfDone.file] })
+  );
+  async function sharePdf() {
+    if (!pdfDone) return;
+    try {
+      await navigator.share({ files: [pdfDone.file], title: pdfDone.file.name });
+    } catch {
+      // 학생이 공유 창을 닫은 경우
+    }
   }
 
   // 만들어 둔 영상(blob URL)을 파일로 내려받기
@@ -1498,6 +1564,68 @@ export function StoryKioskApp() {
         </div>
       ) : null}
       <div className={(step === "login" || step === "attract" ? "hidden " : "") + "pointer-events-none fixed inset-6 rounded-[34px] border-4 border-[#244DFF] shadow-[inset_0_0_0_3px_rgba(255,177,93,0.85),0_0_34px_rgba(36,77,255,0.42)]"} />
+
+      {pdfDone ? (
+        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/65 p-4" role="dialog" aria-modal="true" aria-label="PDF 저장 완료">
+          <div className="w-full max-w-xl rounded-[28px] border-2 border-[#FFB15D]/80 bg-[#111936] p-5 text-center text-white shadow-[0_0_36px_rgba(45,107,255,0.35)] sm:p-6">
+            <img src="/images/geumsami.png" alt="" aria-hidden="true" className="mx-auto h-16 w-16 object-contain" draggable={false} />
+            <h2 className="mt-1 text-2xl font-black">PDF를 저장했어요!</h2>
+            <p className="mt-2 text-sm font-bold text-[#C9E9F5]">저장된 파일 이름</p>
+            <p className="mt-1 break-all rounded-xl bg-[#0B1029] px-3 py-2 text-lg font-black text-[#FFE9B0]">{pdfDone.file.name}</p>
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setShowFolderSteps((current) => !current)}
+                className="min-h-12 rounded-2xl border-2 border-[#FFB15D]/80 bg-[#F0633C] px-4 text-lg font-black"
+              >
+                📂 폴더 열기
+              </button>
+              <button
+                type="button"
+                onClick={() => window.open(pdfDone.url, "_blank")}
+                className="min-h-12 rounded-2xl border-2 border-[#73DFFF]/55 bg-[#101A38] px-4 text-lg font-black"
+              >
+                PDF 바로 보기
+              </button>
+            </div>
+
+            {showFolderSteps ? (
+              <div className="mt-3 rounded-2xl border border-[#73DFFF]/30 bg-[#0B1029] p-4 text-left">
+                <p className="font-black text-[#FFE9B0]">{deviceNames[detectDevice()]}에서 파일 찾기</p>
+                <ol className="mt-2 list-decimal space-y-1 pl-5 text-[15px] font-bold leading-relaxed text-[#DDFBFF]">
+                  {folderSteps(detectDevice()).map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+                {canShareFile ? (
+                  <button type="button" onClick={sharePdf} className="mt-3 min-h-11 w-full rounded-xl border border-[#73DFFF]/45 bg-[#101A38] px-4 font-black">
+                    다른 곳에 저장하거나 보내기
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="mt-4 rounded-2xl border border-[#7B3FE4]/60 bg-[#2E2442]/70 p-4 text-left">
+              <p className="font-black text-[#FFE9B0]">패들렛에 올리기</p>
+              <ol className="mt-1 list-decimal space-y-1 pl-5 text-[15px] font-bold leading-relaxed text-[#DDFBFF]">
+                {padletUploadSteps.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+              <PadletButton className="mt-3 w-full" />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setPdfDone(null)}
+              className="mt-4 min-h-12 rounded-2xl border-2 border-[#73DFFF]/55 bg-[#101A38] px-8 text-lg font-black"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {restartPhase !== "idle" ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/65 p-4" role="dialog" aria-modal="true" aria-label="다시 만들기">

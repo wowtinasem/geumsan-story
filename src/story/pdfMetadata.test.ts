@@ -17,4 +17,15 @@ describe("buildStoryPdfMetadata", () => {
       filename: "M-01-story-2026-06-06.pdf"
     });
   });
+
+  test("uses the student label for the file name when given", () => {
+    expect(
+      buildStoryPdfMetadata({
+        classId: "geumsan",
+        characterName: "가야",
+        createdAt: new Date("2026-10-06T00:00:00.000Z"),
+        ownerLabel: "금산중앙초_5-3-7_이도윤"
+      }).filename
+    ).toBe("금산중앙초_5-3-7_이도윤_동화.pdf");
+  });
 });
