@@ -599,17 +599,13 @@ function StoryTextPanel({
   pageIndex,
   imageReady,
   onPrev,
-  onNext,
-  onSavePdf,
-  pdfBusy
+  onNext
 }: {
   story: StoryResult;
   pageIndex: number;
   imageReady: boolean;
   onPrev: () => void;
   onNext: () => void;
-  onSavePdf: () => void;
-  pdfBusy: boolean;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -628,24 +624,6 @@ function StoryTextPanel({
           다음 쪽 <ArrowRightIcon className="h-5 w-5" />
         </SecondaryButton>
       </div>
-      <div className="grid gap-1.5 rounded-2xl border border-[#FFB15D]/45 bg-[#2E2442]/70 p-2 text-center">
-        <p className="text-sm font-black text-[#FFE9B0]">
-          {pageIndex === story.pages.length - 1
-            ? "마지막 쪽이에요! PDF를 저장한 뒤 패들렛에 올려 친구들과 나눠요."
-            : "6쪽까지 읽고 PDF로 저장한 뒤 패들렛에 올려요."}
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={onSavePdf}
-            disabled={pdfBusy}
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2 whitespace-nowrap rounded-2xl border-2 border-[#FFB15D] bg-[#F0633C] px-4 text-base font-black text-white shadow-[0_0_20px_rgba(240,99,60,0.3)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <ArrowDownTrayIcon className="h-5 w-5" /> {pdfBusy ? "PDF 준비 중…" : "PDF 저장"}
-          </button>
-          <PadletButton className="w-full" />
-        </div>
-      </div>
       {!imageReady ? (
         <div className="flex items-center justify-center gap-2 rounded-2xl border border-[#73DFFF]/25 bg-[#101A38]/72 py-3 text-sm font-black text-[#D4F5FF]">
           <SparklesIcon className="h-4 w-4 animate-pulse" /> 이미지 생성 중...
@@ -655,6 +633,40 @@ function StoryTextPanel({
   );
 }
 
+
+// PDF 저장 + 패들렛 바로가기 (결과 화면 맨 아래)
+function SaveShareBar({
+  story,
+  pageIndex,
+  onSavePdf,
+  pdfBusy
+}: {
+  story: StoryResult;
+  pageIndex: number;
+  onSavePdf: () => void;
+  pdfBusy: boolean;
+}) {
+  return (
+    <div className="grid gap-1.5 rounded-2xl border border-[#FFB15D]/45 bg-[#2E2442]/70 p-2 text-center">
+      <p className="text-sm font-black text-[#FFE9B0]">
+        {pageIndex === story.pages.length - 1
+          ? "마지막 쪽이에요! PDF를 저장한 뒤 패들렛에 올려 친구들과 나눠요."
+          : "6쪽까지 읽고 PDF로 저장한 뒤 패들렛에 올려요."}
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={onSavePdf}
+          disabled={pdfBusy}
+          className="inline-flex min-h-12 w-full items-center justify-center gap-2 whitespace-nowrap rounded-2xl border-2 border-[#FFB15D] bg-[#F0633C] px-4 text-base font-black text-white shadow-[0_0_20px_rgba(240,99,60,0.3)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <ArrowDownTrayIcon className="h-5 w-5" /> {pdfBusy ? "PDF 준비 중…" : "PDF 저장"}
+        </button>
+        <PadletButton className="w-full" />
+      </div>
+    </div>
+  );
+}
 
 function loadImageElement(src: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
@@ -961,6 +973,7 @@ export function StoryKioskApp() {
   // 사건 화면에서 "이미 만들었어요"로 막혀 요청하는 경우(이 기기에 남은 동화가 없을 때)
   const [restartFromLimit, setRestartFromLimit] = useState(false);
   const [customTrait, setCustomTrait] = useState("");
+  const [customPlace, setCustomPlace] = useState("");
   const [customEvents, setCustomEvents] = useState<Record<keyof StorySelection["events"], string>>({
     opening: "",
     development: "",
@@ -1086,6 +1099,7 @@ export function StoryKioskApp() {
         ending: eventGroups.ending[0]
       });
       setCustomTrait("");
+      setCustomPlace("");
       setCustomEvents({ opening: "", development: "", climax: "", ending: "" });
     }
     setSceneImages({});
@@ -1541,6 +1555,20 @@ export function StoryKioskApp() {
 
     setTrait({ id: `custom-trait-${Date.now()}`, label });
     setCustomTrait("");
+    setCustomError("");
+  }
+
+  // 장소 직접 쓰기: 고른 장소를 바꾼다(장소는 언제나 한 곳만)
+  function applyCustomPlace() {
+    const label = sanitizeCustomChoice(customPlace);
+    if (!label) return;
+    if (isBlockedCustomChoice(label)) {
+      setCustomError("다른 표현으로 써 주세요.");
+      return;
+    }
+
+    setPlace({ id: `custom-place-${Date.now()}`, name: label, sceneKey: "custom", color: "#7B3FE4", imageSrc: "" });
+    setCustomPlace("");
     setCustomError("");
   }
 
@@ -2282,13 +2310,41 @@ export function StoryKioskApp() {
                       <p className="text-base font-black text-[#7DFFD4]">3단계</p>
                       <h2 className="text-[clamp(24px,2.4vw,30px)] font-black leading-tight">이야기 배경을 골라요</h2>
                     </div>
-                    <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className="grid min-h-0 auto-rows-max grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-4">
                       {places.map((item) => (
                         <button key={item.id} type="button" onClick={() => setPlace(item)} className={compactChoiceButtonClass(place.id === item.id)}>
                           <MiniPlaceArt place={item} />
                           <span className="text-sm font-black">{item.name}</span>
                         </button>
                       ))}
+                    </div>
+                    <div className="shrink-0 rounded-2xl border border-[#73DFFF]/20 bg-[#0B1029]/72 p-2">
+                      <p className="mb-1 text-xs font-black text-[#D4F5FF]">
+                        장소 직접 쓰기 <span className="font-bold text-[#D4F5FF]/60">· 장소는 한 곳만 고를 수 있어요</span>
+                      </p>
+                      {place.id.startsWith("custom-place") ? (
+                        <p className="mb-1.5 flex items-center justify-between gap-2 rounded-xl border border-[#FFB15D] bg-[#2E2442] px-3 py-1.5 text-sm font-black text-white">
+                          <span>✓ 내가 쓴 장소: {place.name}</span>
+                          <button type="button" onClick={() => setPlace(defaultPlace)} className="text-xs font-black text-[#FFE9B0] underline">
+                            지우기
+                          </button>
+                        </p>
+                      ) : null}
+                      <div className="grid grid-cols-[1fr_auto] gap-1.5">
+                        <input
+                          value={customPlace}
+                          onChange={(event) => setCustomPlace(sanitizeTypingChoice(event.target.value))}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") applyCustomPlace();
+                          }}
+                          placeholder="예: 금산 하늘물빛정원, 우리 학교 운동장"
+                          className="min-h-9 min-w-0 rounded-xl border border-[#73DFFF]/30 bg-[#151F41] px-3 text-sm font-bold text-white outline-none placeholder:text-[#D4F5FF]/40 focus:border-[#FFB15D]"
+                        />
+                        <button type="button" onClick={applyCustomPlace} className="min-h-9 rounded-xl bg-[#F0633C] px-3 text-xs font-black text-white">
+                          이 장소로
+                        </button>
+                      </div>
+                      {customError && step === "place" ? <p className="mt-1 text-xs font-black text-[#FFD073]">{customError}</p> : null}
                     </div>
                   </div>
                 ) : null}
@@ -2381,9 +2437,20 @@ export function StoryKioskApp() {
                       imageReady={!currentPageImageLoading}
                       onPrev={() => setPageIndex((current) => Math.max(0, current - 1))}
                       onNext={() => setPageIndex((current) => Math.min(story.pages.length - 1, current + 1))}
-                      onSavePdf={printStorybook}
-                      pdfBusy={Boolean(imageGenerationMode) || videoPhase === "render"}
                     />
+                    <div className="grid grid-cols-1 gap-2 rounded-2xl border border-[#73DFFF]/20 bg-[#0B1029]/72 p-2 sm:grid-cols-2">
+                      <SecondaryButton onClick={generateCoverImage} disabled={Boolean(imageGenerationMode) || Boolean(sceneImages[0])}>
+                        <SparklesIcon className="h-5 w-5" /> {imageGenerationMode === "cover" ? "대표 그림 생성 중" : sceneImages[0] ? "대표 그림 완료" : "대표 그림 만들기"}
+                      </SecondaryButton>
+                      <SecondaryButton onClick={generatePrintableImages} disabled={Boolean(imageGenerationMode) || printableImagesReady}>
+                        <PrinterIcon className="h-5 w-5" /> {imageGenerationMode === "print" ? "출력용 그림 생성 중" : printableImagesReady ? "출력용 그림 완료" : "출력용 그림 만들기"}
+                      </SecondaryButton>
+                      {imageGenerationMessage ? (
+                        <p className="col-span-1 rounded-xl border border-[#FFD073]/35 bg-[#2E2442]/80 px-3 py-2 text-xs font-black text-[#FFE9B0] sm:col-span-2">
+                          {imageGenerationMessage}
+                        </p>
+                      ) : null}
+                    </div>
                     <div className="rounded-2xl border border-[#FFB15D]/30 bg-[#2E2442]/72 p-2">
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <p className="text-xs font-black text-[#FFE9B0]">
@@ -2417,19 +2484,12 @@ export function StoryKioskApp() {
                         })}
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 gap-2 rounded-2xl border border-[#73DFFF]/20 bg-[#0B1029]/72 p-2 sm:grid-cols-2">
-                      <SecondaryButton onClick={generateCoverImage} disabled={Boolean(imageGenerationMode) || Boolean(sceneImages[0])}>
-                        <SparklesIcon className="h-5 w-5" /> {imageGenerationMode === "cover" ? "대표 그림 생성 중" : sceneImages[0] ? "대표 그림 완료" : "대표 그림 만들기"}
-                      </SecondaryButton>
-                      <SecondaryButton onClick={generatePrintableImages} disabled={Boolean(imageGenerationMode) || printableImagesReady}>
-                        <PrinterIcon className="h-5 w-5" /> {imageGenerationMode === "print" ? "출력용 그림 생성 중" : printableImagesReady ? "출력용 그림 완료" : "출력용 그림 만들기"}
-                      </SecondaryButton>
-                      {imageGenerationMessage ? (
-                        <p className="col-span-1 rounded-xl border border-[#FFD073]/35 bg-[#2E2442]/80 px-3 py-2 text-xs font-black text-[#FFE9B0] sm:col-span-2">
-                          {imageGenerationMessage}
-                        </p>
-                      ) : null}
-                    </div>
+                    <SaveShareBar
+                      story={story}
+                      pageIndex={pageIndex}
+                      onSavePdf={printStorybook}
+                      pdfBusy={Boolean(imageGenerationMode) || videoPhase === "render"}
+                    />
                   </div>
                 ) : null}
 

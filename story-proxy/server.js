@@ -572,7 +572,7 @@ function buildImagePrompt(selection, scene, pageIndex) {
     "Anatomy must be correct and natural: the protagonist has exactly one head, two arms, and two hands with five fingers each, and two legs. Never draw extra, duplicated, or floating hands, arms, fingers, or limbs; no deformed or merged fingers.",
     "Supporting characters may appear only when needed by the story, but keep them small and secondary. They must not distract from, replace, duplicate, or be confused with the protagonist.",
     "Do not include Geumsami, the app narrator mascot (a cute ginseng-root character with green leaves and red berries on its head, a green scarf, green vest, brown shorts and a brown satchel), logos, watermark, text labels, captions, or any extra sticker-like overlay inside the generated illustration.",
-    `Setting bible: ${settingBible[placeKey] || settingBible.village}. Keep the same world design, palette, lighting mood, and material style across pages.`,
+    `Setting bible: ${settingBible[placeKey] || (placeKey === "custom" ? `${cleanPromptText(place, 40)} — the place the student wrote, drawn as a believable present-day Korean location that clearly matches this name` : settingBible.village)}. Keep the same world design, palette, lighting mood, and material style across pages.`,
     eraLine,
     ...(placeKey === "chilbaek" ? ["Keep the mood respectful and quiet; no party, no balloons, no playful chaos."] : []),
     "Use a consistent square storybook composition: protagonist clearly visible in the foreground or middle ground, clear foreground action, soft background depth, no extreme camera angle changes, no cropping that makes the character unrecognizable.",
