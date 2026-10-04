@@ -210,3 +210,24 @@ export async function requestAdminStats(sessionToken: string): Promise<AdminStat
     return null;
   }
 }
+
+export type AiConnection = { text: boolean; image: boolean; textModel: string; imageModel: string };
+
+// 관리자 현황판: 서버의 Gemini 키로 설정된 글·그림 모델을 쓸 수 있는지 확인한다(모델 목록 조회라 비용 없음).
+export async function requestAiConnection(sessionToken: string): Promise<AiConnection | null> {
+  try {
+    const response = await fetch(`${storyProxyUrl}/api/admin-models`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionToken })
+    });
+    if (!response.ok) return null;
+    const data = (await response.json()) as { configured?: { text?: string; image?: string }; models?: { name: string }[] };
+    const names = new Set((data.models || []).map((model) => model.name));
+    const textModel = data.configured?.text || "";
+    const imageModel = data.configured?.image || "";
+    return { text: names.has(textModel), image: names.has(imageModel), textModel, imageModel };
+  } catch {
+    return null;
+  }
+}

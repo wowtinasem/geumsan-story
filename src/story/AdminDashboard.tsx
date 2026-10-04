@@ -2,9 +2,21 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AdminGuide, type GuideSectionId } from "./AdminGuide";
-import { readAdminSession, requestAdminStats, type AdminStats } from "./adminSession";
+import { readAdminSession, requestAdminStats, requestAiConnection, type AdminStats, type AiConnection } from "./adminSession";
 
 const REFRESH_MS = 10000;
+const AI_CHECK_MS = 5 * 60 * 1000;
+
+function Light({ ok, label, okText, badText }: { ok: boolean | null; label: string; okText: string; badText: string }) {
+  const color = ok === null ? "bg-[#9FB4D0]" : ok ? "bg-[#5BE3A0]" : "bg-[#FF7A8A]";
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className={`h-3 w-3 rounded-full ${color}`} />
+      <span className="text-[#9FDFF0]">{label}</span>
+      <span className="font-black">{ok === null ? "확인 중" : ok ? okText : badText}</span>
+    </span>
+  );
+}
 
 function timeText(t: number) {
   return new Date(t).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" });
@@ -44,12 +56,30 @@ export function AdminDashboard() {
   const [problem, setProblem] = useState("");
   const [checkedAt, setCheckedAt] = useState(0);
   const [guide, setGuide] = useState<GuideSectionId | null>(null);
+  // undefined: 아직 확인 전, null: 확인 실패
+  const [ai, setAi] = useState<AiConnection | null | undefined>(undefined);
   const closeGuide = useCallback(() => setGuide(null), []);
 
   useEffect(() => {
     const session = readAdminSession();
     setToken(session?.role === "admin" ? session.sessionToken : "");
   }, []);
+
+  // 글·그림 AI 연결 확인 (비용 없는 모델 목록 조회, 5분마다)
+  useEffect(() => {
+    if (!token) return;
+    let stopped = false;
+    async function check() {
+      const result = await requestAiConnection(token as string);
+      if (!stopped) setAi(result);
+    }
+    void check();
+    const timer = window.setInterval(check, AI_CHECK_MS);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
@@ -127,7 +157,14 @@ export function AdminDashboard() {
 
         {stats && state && q ? (
           <>
-            <section className={`mt-5 rounded-3xl border-2 p-5 ${state.tone}`}>
+            <section className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-[#73DFFF]/30 bg-[#111A39] px-5 py-3 text-sm">
+              <Light ok={!problem} label="서버" okText="켜져 있음" badText="연결 안 됨" />
+              <Light ok={ai === undefined ? null : Boolean(ai?.text)} label="글 AI" okText="연결됨" badText="확인 필요" />
+              <Light ok={ai === undefined ? null : Boolean(ai?.image)} label="그림 AI" okText="연결됨" badText="확인 필요" />
+              <span className="text-xs text-[#9FB4D0]">서버는 항상 켜져 있어요. 따로 깨울 필요가 없어요.</span>
+            </section>
+
+            <section className={`mt-4 rounded-3xl border-2 p-5 ${state.tone}`}>
               <div className="text-sm font-bold opacity-80">지금 상태</div>
               <div className="text-4xl font-black">{state.label}</div>
               <div className="mt-1 font-bold">{state.detail}</div>
