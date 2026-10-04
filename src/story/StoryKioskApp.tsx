@@ -2445,35 +2445,38 @@ export function StoryKioskApp() {
                       onPrev={() => setPageIndex((current) => Math.max(0, current - 1))}
                       onNext={() => setPageIndex((current) => Math.min(story.pages.length - 1, current + 1))}
                     />
-                    <div className="rounded-2xl border border-[#73DFFF]/20 bg-[#0B1029]/72 p-2">
-                      <p className="mb-1.5 text-xs font-black text-[#FFE9B0]">
-                        그림 스타일{" "}
-                        <span className="font-bold text-[#D4F5FF]/70">
-                          {Object.keys(sceneImages).length ? "· 그림을 만든 뒤에는 바꿀 수 없어요" : "· 그림을 만들기 전에 골라요"}
-                        </span>
+                    {Object.keys(sceneImages).length || imageGenerationMode ? (
+                      <p className="rounded-2xl border border-[#73DFFF]/20 bg-[#0B1029]/72 px-3 py-1.5 text-xs font-black text-[#FFE9B0]">
+                        그림 스타일: {artStyles.find((style) => style.id === artStyle)?.label}{" "}
+                        <span className="font-bold text-[#D4F5FF]/60">· 그림을 만든 뒤에는 바꿀 수 없어요</span>
                       </p>
-                      <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7">
-                        {artStyles.map((style) => {
-                          const active = artStyle === style.id;
-                          const locked = Object.keys(sceneImages).length > 0 || Boolean(imageGenerationMode);
-                          return (
-                            <button
-                              key={style.id}
-                              type="button"
-                              disabled={locked && !active}
-                              onClick={() => setArtStyle(style.id)}
-                              className={[
-                                "flex flex-col items-center gap-1 rounded-xl border p-1 text-[11px] font-black leading-tight transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-35",
-                                active ? "border-[#FFB15D] bg-[#2E2442] text-white" : "border-[#73DFFF]/25 bg-[#151F41] text-[#D4F5FF]"
-                              ].join(" ")}
-                            >
-                              <img src={`/images/styles/${style.id}.jpg`} alt="" className="aspect-square w-full rounded-lg object-cover" draggable={false} />
-                              {style.label}
-                            </button>
-                          );
-                        })}
+                    ) : (
+                      <div className="rounded-2xl border border-[#73DFFF]/20 bg-[#0B1029]/72 p-1.5">
+                        <p className="mb-1 text-xs font-black text-[#FFE9B0]">
+                          그림 스타일 <span className="font-bold text-[#D4F5FF]/70">· 그림을 만들기 전에 골라요</span>
+                        </p>
+                        <div className="grid grid-cols-4 gap-1 sm:grid-cols-7">
+                          {artStyles.map((style) => {
+                            const active = artStyle === style.id;
+                            return (
+                              <button
+                                key={style.id}
+                                type="button"
+                                aria-pressed={active}
+                                onClick={() => setArtStyle(style.id)}
+                                className={[
+                                  "flex flex-col items-center gap-0.5 rounded-lg border p-0.5 text-[11px] font-black leading-tight transition active:scale-[0.98]",
+                                  active ? "border-[#FFB15D] bg-[#F0633C] text-white" : "border-[#73DFFF]/25 bg-[#151F41] text-[#D4F5FF]"
+                                ].join(" ")}
+                              >
+                                <img src={`/images/styles/${style.id}.jpg`} alt="" className="h-9 w-full rounded-md object-cover" draggable={false} />
+                                <span className="whitespace-nowrap">{style.short}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    )}
                     <div className="grid grid-cols-1 gap-2 rounded-2xl border border-[#73DFFF]/20 bg-[#0B1029]/72 p-2 sm:grid-cols-2">
                       <SecondaryButton onClick={generateCoverImage} disabled={Boolean(imageGenerationMode) || Boolean(sceneImages[0])}>
                         <SparklesIcon className="h-5 w-5" /> {imageGenerationMode === "cover" ? "대표 그림 생성 중" : sceneImages[0] ? "대표 그림 완료" : "대표 그림 만들기"}
