@@ -546,10 +546,11 @@ function buildImagePrompt(selection, scene, pageIndex) {
 
   return [
     "Create one original children's storybook scene illustration.",
+    "Output format: exactly ONE single continuous full-bleed illustration showing ONE moment, filling the whole canvas edge to edge. Never a comic page, never panels, grid, collage, split screen, diptych, triptych, storyboard, multiple frames, borders, gutters, or dividing lines; never repeat the same picture twice in one image; never a character turnaround or model sheet. The protagonist appears exactly once in the image.",
     "Visual direction: warm 3D animated feature film look, rounded toy-like characters, soft cinematic lighting, expressive faces, colorful magical atmosphere, high detail, family friendly, no text, no logos, no copyrighted characters, no imitation of an existing studio or franchise.",
-    "Maintain strict visual continuity across all 6 pages of the same book.",
+    "This request makes the picture for one page only (other pages are drawn separately). Maintain strict visual continuity with the other pages of the same book.",
     `Character bible: ${characterBible}. This is the single named protagonist${speciesNote}. Keep the exact same face shape, hairstyle, eye color, body proportions, outfit, accessories, colors, and facial features on every page.`,
-    "Treat the character bible as a fixed character model sheet: reproduce the protagonist's face, hairstyle, body proportions, and the exact same outfit identically on every page, as if drawn from the same reference sheet. Only the pose, action, expression, and scene change between pages.",
+    "Treat the character bible as a fixed character design: reproduce the protagonist's face, hairstyle, body proportions, and the exact same outfit identically on every page. Only the pose, action, expression, and scene change between pages.",
     consistencyLine,
     "Outfit lock: the protagonist wears the exact same outfit with the same colors on every page — the same top, same bottoms, same shoes, and same accessories. Never change, recolor, or restyle the clothing between pages.",
     "Anatomy must be correct and natural: the protagonist has exactly one head, two arms, and two hands with five fingers each, and two legs. Never draw extra, duplicated, or floating hands, arms, fingers, or limbs; no deformed or merged fingers.",
@@ -559,11 +560,12 @@ function buildImagePrompt(selection, scene, pageIndex) {
     ...(placeKey === "chilbaek" ? ["Keep the mood respectful and quiet; no party, no balloons, no playful chaos."] : []),
     "Use a consistent square storybook composition: protagonist clearly visible in the foreground or middle ground, clear foreground action, soft background depth, no extreme camera angle changes, no cropping that makes the character unrecognizable.",
     `This is page ${pageNum} of a 6-page continuous story; this page should ${flowRoleEn}. Illustrate the specific moment described below with its own distinct action, pose, expression, composition, and background detail.`,
-    "Across the 6 pages each illustration must look clearly different and follow the story's progression in order; never repeat the same scene, pose, or composition. Keep the same protagonist and the same outfit while only the action and surroundings change to match each page's moment.",
+    "Each page's illustration must look clearly different from the other pages and follow the story's progression; never repeat another page's scene, pose, or composition. Keep the same protagonist and the same outfit while only the action and surroundings change to match this page's moment.",
     `Main character: ${character}, personality: ${trait}.`,
     `Setting: ${place}.`,
     `Story moment in Korean: ${scene}`,
-    "Composition: one clear main action that matches this exact story moment, cozy emotion, child-safe, readable at kiosk distance."
+    "Composition: one clear main action that matches this exact story moment, cozy emotion, child-safe, readable at kiosk distance.",
+    "If the story moment mentions a choice, a sequence, or a before-and-after, still draw only one single moment in one single frame. Output format: exactly ONE single continuous full-bleed illustration showing ONE moment, filling the whole canvas edge to edge. Never a comic page, never panels, grid, collage, split screen, diptych, triptych, storyboard, multiple frames, borders, gutters, or dividing lines; never repeat the same picture twice in one image; never a character turnaround or model sheet. The protagonist appears exactly once in the image."
   ].join("\n");
 }
 
