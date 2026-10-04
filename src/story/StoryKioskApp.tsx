@@ -36,6 +36,7 @@ import { isGeneratedSceneImage } from "./imageGeneration";
 import { checkProxyHealth, generateSceneImage, generateStory, localStory } from "./storyEngine";
 import { buildStoryVideo } from "./storyVideo";
 import { clearWork, loadWork, pruneOldWorks, saveWork } from "./workStore";
+import { artStyles, defaultArtStyle, type ArtStyleId } from "./artStyles";
 import { detectDevice, deviceNames, folderSteps, padletUploadSteps, padletUrl } from "./downloadHelp";
 import {
   defaultMusicGenreId,
@@ -65,6 +66,7 @@ type StoryWork = {
   events: StorySelection["events"];
   customTrait: string;
   customEvents: Record<keyof StorySelection["events"], string>;
+  artStyle?: ArtStyleId;
   story: StoryResult;
   sceneImages: Record<number, string>;
 };
@@ -974,6 +976,8 @@ export function StoryKioskApp() {
   const [restartFromLimit, setRestartFromLimit] = useState(false);
   const [customTrait, setCustomTrait] = useState("");
   const [customPlace, setCustomPlace] = useState("");
+  // 그림 스타일: 그림을 한 장이라도 만들면 그 동화 안에서는 바꿀 수 없다(6쪽이 한 권처럼 보이게)
+  const [artStyle, setArtStyle] = useState<ArtStyleId>(defaultArtStyle);
   const [customEvents, setCustomEvents] = useState<Record<keyof StorySelection["events"], string>>({
     opening: "",
     development: "",
@@ -1016,8 +1020,8 @@ export function StoryKioskApp() {
     return featureTextTrimmed && !featureTextBlocked ? [...picked, featureTextTrimmed] : picked;
   }, [featureIds, featureTextTrimmed, featureTextBlocked]);
   const selection = useMemo(
-    () => buildSelection(character, trait, place, events, heroName, gender, hairDesc, featureDescs, heroAgeId),
-    [character, trait, place, events, heroName, gender, hairDesc, featureDescs, heroAgeId]
+    () => ({ ...buildSelection(character, trait, place, events, heroName, gender, hairDesc, featureDescs, heroAgeId), artStyle }),
+    [character, trait, place, events, heroName, gender, hairDesc, featureDescs, heroAgeId, artStyle]
   );
   const pdfMetadata = useMemo(
     () =>
@@ -1100,6 +1104,7 @@ export function StoryKioskApp() {
       });
       setCustomTrait("");
       setCustomPlace("");
+      setArtStyle(defaultArtStyle);
       setCustomEvents({ opening: "", development: "", climax: "", ending: "" });
     }
     setSceneImages({});
@@ -1136,6 +1141,7 @@ export function StoryKioskApp() {
     setEvents(work.events);
     setCustomTrait(work.customTrait);
     setCustomEvents(work.customEvents);
+    setArtStyle(work.artStyle || defaultArtStyle);
     setStory(work.story);
     setSceneImages(work.sceneImages || {});
     setHasWork(true);
@@ -1158,11 +1164,12 @@ export function StoryKioskApp() {
       events,
       customTrait,
       customEvents,
+      artStyle,
       story,
       sceneImages
     };
     void saveWork(workOwner, work);
-  }, [hasWork, workOwner, story, sceneImages, character, heroName, gender, heroAgeId, hairColorId, featureIds, featureTab, featureText, trait, place, events, customTrait, customEvents]);
+  }, [hasWork, workOwner, story, sceneImages, character, heroName, gender, heroAgeId, hairColorId, featureIds, featureTab, featureText, trait, place, events, customTrait, customEvents, artStyle]);
 
   // "다시 만들기": 학생은 선생님(관리자) 허락이 있어야 한다. 허락되면 지금 동화를 지우고 주인공 고르기부터.
   const startOver = useCallback(async () => {
@@ -2438,6 +2445,35 @@ export function StoryKioskApp() {
                       onPrev={() => setPageIndex((current) => Math.max(0, current - 1))}
                       onNext={() => setPageIndex((current) => Math.min(story.pages.length - 1, current + 1))}
                     />
+                    <div className="rounded-2xl border border-[#73DFFF]/20 bg-[#0B1029]/72 p-2">
+                      <p className="mb-1.5 text-xs font-black text-[#FFE9B0]">
+                        그림 스타일{" "}
+                        <span className="font-bold text-[#D4F5FF]/70">
+                          {Object.keys(sceneImages).length ? "· 그림을 만든 뒤에는 바꿀 수 없어요" : "· 그림을 만들기 전에 골라요"}
+                        </span>
+                      </p>
+                      <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7">
+                        {artStyles.map((style) => {
+                          const active = artStyle === style.id;
+                          const locked = Object.keys(sceneImages).length > 0 || Boolean(imageGenerationMode);
+                          return (
+                            <button
+                              key={style.id}
+                              type="button"
+                              disabled={locked && !active}
+                              onClick={() => setArtStyle(style.id)}
+                              className={[
+                                "flex flex-col items-center gap-1 rounded-xl border p-1 text-[11px] font-black leading-tight transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-35",
+                                active ? "border-[#FFB15D] bg-[#2E2442] text-white" : "border-[#73DFFF]/25 bg-[#151F41] text-[#D4F5FF]"
+                              ].join(" ")}
+                            >
+                              <img src={`/images/styles/${style.id}.jpg`} alt="" className="aspect-square w-full rounded-lg object-cover" draggable={false} />
+                              {style.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                     <div className="grid grid-cols-1 gap-2 rounded-2xl border border-[#73DFFF]/20 bg-[#0B1029]/72 p-2 sm:grid-cols-2">
                       <SecondaryButton onClick={generateCoverImage} disabled={Boolean(imageGenerationMode) || Boolean(sceneImages[0])}>
                         <SparklesIcon className="h-5 w-5" /> {imageGenerationMode === "cover" ? "대표 그림 생성 중" : sceneImages[0] ? "대표 그림 완료" : "대표 그림 만들기"}

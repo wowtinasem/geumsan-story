@@ -470,6 +470,17 @@ ${isMiddle ? `- 중학생: 어린아이 말투(~했어요, ~했답니다)를 쓰
 반드시 길이 6짜리 JSON 문자열 배열만 출력한다.`;
 }
 
+// 그림 스타일 (앱에서 selection.artStyle로 id만 받는다. 모르는 값이면 기본 3D)
+const artStylePrompts = {
+  anim3d: "warm 3D animated feature film look, rounded toy-like characters, soft cinematic lighting, expressive faces, colorful magical atmosphere, high detail",
+  watercolor: "soft watercolor children's picture-book painting, gentle transparent washes and color blooms, delicate ink outlines, visible watercolor paper texture, light airy palette",
+  colorpencil: "hand-drawn colored pencil illustration, visible pencil strokes and paper grain, soft layered shading, cheerful bright colors, cozy handmade picture-book feel",
+  clay: "claymation style: characters, props, and scenery sculpted from colorful modeling clay, soft clay texture with subtle fingerprints, handmade miniature set, soft studio lighting",
+  papercut: "layered paper-cut collage illustration: scenery and characters made of cut colored paper shapes stacked in layers with soft drop shadows, craft paper textures, clean simple shapes",
+  oil: "oil painting picture-book illustration, rich textured brush strokes, warm glowing light, deep colors, painterly canvas texture",
+  crayon: "warm crayon drawing, waxy crayon strokes on slightly rough paper, cozy childlike hand-drawn feel, bright warm colors, simple friendly shapes"
+};
+
 function buildImagePrompt(selection, scene, pageIndex) {
   const character = selection.character?.name || "주인공";
   const trait = selection.trait?.label || "다정한";
@@ -563,7 +574,7 @@ function buildImagePrompt(selection, scene, pageIndex) {
   return [
     "Create one original children's storybook scene illustration.",
     "Output format: exactly ONE single continuous full-bleed illustration showing ONE moment, filling the whole canvas edge to edge. Never a comic page, never panels, grid, collage, split screen, diptych, triptych, storyboard, multiple frames, borders, gutters, or dividing lines; never repeat the same picture twice in one image; never a character turnaround or model sheet. The protagonist appears exactly once in the image.",
-    "Visual direction: warm 3D animated feature film look, rounded toy-like characters, soft cinematic lighting, expressive faces, colorful magical atmosphere, high detail, family friendly, no text, no logos, no copyrighted characters, no imitation of an existing studio or franchise.",
+    `Visual direction: ${artStylePrompts[selection.artStyle] || artStylePrompts.anim3d}, family friendly, no text, no logos, no copyrighted characters, no imitation of an existing studio, artist, or franchise. Use this same art style consistently on every page.`,
     "This request makes the picture for one page only (other pages are drawn separately). Maintain strict visual continuity with the other pages of the same book.",
     `Character bible: ${characterBible}. This is the single named protagonist${speciesNote}. Keep the exact same face shape, hairstyle, eye color, body proportions, outfit, accessories, colors, and facial features on every page.`,
     "Treat the character bible as a fixed character design: reproduce the protagonist's face, hairstyle, body proportions, and the exact same outfit identically on every page. Only the pose, action, expression, and scene change between pages.",

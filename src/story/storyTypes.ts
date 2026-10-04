@@ -35,6 +35,8 @@ export type StorySelection = {
   };
   trait: { id: string; label: string };
   place: { id: string; name: string; sceneKey: string };
+  // 그림 스타일 id (artStyles.ts). 없으면 기본 3D
+  artStyle?: string;
   events: {
     opening: Choice;
     development: Choice;
