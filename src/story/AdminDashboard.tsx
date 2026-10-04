@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { AdminGuide, type GuideSectionId } from "./AdminGuide";
 import { readAdminSession, requestAdminStats, type AdminStats } from "./adminSession";
 
 const REFRESH_MS = 10000;
@@ -19,12 +20,12 @@ function overallState(stats: AdminStats) {
   const tried = stats.today.images + stats.today.imageFailed;
   const failRate = tried ? stats.today.imageFailed / tried : 0;
   if (tried >= 10 && failRate >= 0.1) {
-    return { label: "확인 필요", detail: "오늘 그림 실패가 10% 이상이에요. Google AI Studio 사용량·결제를 확인하세요.", tone: "bg-[#5A1F2A] border-[#FF7A8A]" };
+    return { id: "check" as const, label: "확인 필요", detail: "오늘 그림 실패가 10% 이상이에요. Google AI Studio 사용량·결제를 확인하세요.", tone: "bg-[#5A1F2A] border-[#FF7A8A]" };
   }
   if (q.waiting >= 20 || q.startedLastMinute >= q.rpmLimit * 0.9) {
-    return { label: "붐빔", detail: "그림 순서를 기다리는 학생이 많아요. 학생들에게 화면을 그대로 두라고 안내하세요.", tone: "bg-[#5A4316] border-[#FFC857]" };
+    return { id: "busy" as const, label: "붐빔", detail: "그림 순서를 기다리는 학생이 많아요. 학생들에게 화면을 그대로 두라고 안내하세요.", tone: "bg-[#5A4316] border-[#FFC857]" };
   }
-  return { label: "원활", detail: "그림이 바로바로 만들어지고 있어요.", tone: "bg-[#173F2E] border-[#5BE3A0]" };
+  return { id: "ok" as const, label: "원활", detail: "그림이 바로바로 만들어지고 있어요.", tone: "bg-[#173F2E] border-[#5BE3A0]" };
 }
 
 function Card({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
@@ -42,6 +43,8 @@ export function AdminDashboard() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [problem, setProblem] = useState("");
   const [checkedAt, setCheckedAt] = useState(0);
+  const [guide, setGuide] = useState<GuideSectionId | null>(null);
+  const closeGuide = useCallback(() => setGuide(null), []);
 
   useEffect(() => {
     const session = readAdminSession();
@@ -87,6 +90,7 @@ export function AdminDashboard() {
 
   const state = stats ? overallState(stats) : null;
   const q = stats?.imageQueue;
+  const problemSection: GuideSectionId = problem.startsWith("관리자 로그인") ? "relogin" : "offline";
 
   return (
     <main className="min-h-screen bg-[#080D1F] px-4 py-6 text-white sm:px-8">
@@ -98,12 +102,28 @@ export function AdminDashboard() {
               10초마다 자동으로 새로 고쳐요{checkedAt ? ` · 마지막 확인 ${timeText(checkedAt)}` : ""}
             </p>
           </div>
-          <a href="/story" className="rounded-2xl border border-[#73DFFF]/45 bg-[#101A38] px-4 py-2 text-sm font-black">
-            동화 만들기 화면으로
-          </a>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setGuide("read")}
+              className="rounded-2xl border-2 border-[#FFB15D] bg-[#F0633C] px-5 py-2 text-sm font-black text-white"
+            >
+              가이드
+            </button>
+            <a href="/story" className="rounded-2xl border border-[#73DFFF]/45 bg-[#101A38] px-4 py-2 text-sm font-black">
+              동화 만들기 화면으로
+            </a>
+          </div>
         </header>
 
-        {problem ? <p className="mt-4 rounded-2xl border border-[#FF7A8A] bg-[#5A1F2A] p-4 font-bold">{problem}</p> : null}
+        {problem ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#FF7A8A] bg-[#5A1F2A] p-4 font-bold">
+            <span>{problem}</span>
+            <button type="button" onClick={() => setGuide(problemSection)} className="rounded-xl bg-white/15 px-4 py-2 text-sm font-black">
+              이럴 땐 어떻게 하나요?
+            </button>
+          </div>
+        ) : null}
 
         {stats && state && q ? (
           <>
@@ -111,6 +131,9 @@ export function AdminDashboard() {
               <div className="text-sm font-bold opacity-80">지금 상태</div>
               <div className="text-4xl font-black">{state.label}</div>
               <div className="mt-1 font-bold">{state.detail}</div>
+              <button type="button" onClick={() => setGuide(state.id)} className="mt-3 rounded-xl bg-white/15 px-4 py-2 text-sm font-black">
+                이럴 땐 어떻게 하나요?
+              </button>
               {stats.mock ? <div className="mt-2 text-sm font-bold text-[#FFC857]">시험 모드(가짜 그림)로 켜져 있어요.</div> : null}
             </section>
 
@@ -166,6 +189,7 @@ export function AdminDashboard() {
           <p className="mt-6 text-[#9FB4D0]">불러오는 중…</p>
         ) : null}
       </div>
+      {guide ? <AdminGuide focus={guide} onClose={closeGuide} /> : null}
     </main>
   );
 }
