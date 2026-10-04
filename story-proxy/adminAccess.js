@@ -1,4 +1,4 @@
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 // 접근 방식 두 가지.
 // 1) 학생: 학교명·학년·번호·이름을 적으면 서버가 학생 세션 토큰을 발급한다(비밀번호 없음).
@@ -53,17 +53,39 @@ export function normalizeStudentInfo(input = {}) {
   return { school, grade, number, name };
 }
 
+// 세션 토큰은 서버 서명이 붙은 자체 증명 토큰이다: geumsan-{역할}-{내용}.{서명}
+// 서버가 다시 켜져도(배포·재시작) 같은 SESSION_SECRET이면 학생 로그인이 그대로 유지된다.
+// SESSION_SECRET이 없으면 실행할 때마다 새 비밀값을 만든다(재시작하면 다시 로그인).
+function base64url(buffer) {
+  return Buffer.from(buffer).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function fromBase64url(text) {
+  return Buffer.from(String(text).replace(/-/g, "+").replace(/_/g, "/"), "base64");
+}
+
 export function createAdminAccessStore({
   credentials = readAdminCredentials(),
-  now = () => Date.now()
+  now = () => Date.now(),
+  secret = process.env.SESSION_SECRET || randomBytes(32).toString("hex")
 } = {}) {
-  const sessions = new Map();
   const failures = new Map();
+  const revoked = new Map(); // 로그아웃한 토큰 → 만료 시각
 
-  function pruneSessions() {
-    const cutoff = now() - sessionTtlMs;
-    for (const [token, record] of sessions) {
-      if (record.issuedAt <= cutoff) sessions.delete(token);
+  function sign(body) {
+    return base64url(createHmac("sha256", String(secret)).update(body).digest());
+  }
+
+  function issueToken(role, data) {
+    const payload = base64url(JSON.stringify({ ...data, iat: now() }));
+    const body = `geumsan-${role}-${payload}`;
+    return `${body}.${sign(body)}`;
+  }
+
+  function pruneRevoked() {
+    const t = now();
+    for (const [token, expiresAt] of revoked) {
+      if (expiresAt <= t) revoked.delete(token);
     }
   }
 
@@ -120,10 +142,7 @@ export function createAdminAccessStore({
     }
 
     failures.delete(state.key);
-    pruneSessions();
-
-    const sessionToken = `geumsan-admin-${randomUUID()}`;
-    sessions.set(sessionToken, { role: "admin", adminId: credentials.adminId, issuedAt: now() });
+    const sessionToken = issueToken("admin", { a: credentials.adminId });
 
     return {
       ok: true,
@@ -152,9 +171,7 @@ export function createAdminAccessStore({
       };
     }
 
-    pruneSessions();
-    const sessionToken = `geumsan-student-${randomUUID()}`;
-    sessions.set(sessionToken, { role: "student", student, issuedAt: now() });
+    const sessionToken = issueToken("student", { s: student });
 
     return {
       ok: true,
@@ -165,22 +182,51 @@ export function createAdminAccessStore({
     };
   }
 
+  function invalid() {
+    return {
+      ok: false,
+      reason: "invalid_session",
+      message: "로그인이 만료되었어요. 다시 로그인해 주세요."
+    };
+  }
+
   function verify(sessionToken) {
-    pruneSessions();
-    const record = sessions.get(String(sessionToken || ""));
-    if (!record) {
-      return {
-        ok: false,
-        reason: "invalid_session",
-        message: "로그인이 만료되었어요. 다시 로그인해 주세요."
-      };
+    const token = String(sessionToken || "");
+    const match = /^geumsan-(admin|student)-([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/.exec(token);
+    if (!match) return invalid();
+
+    const [, role, payload, signature] = match;
+    const expected = sign(`geumsan-${role}-${payload}`);
+    const given = Buffer.from(signature);
+    const wanted = Buffer.from(expected);
+    if (given.length !== wanted.length || !timingSafeEqual(given, wanted)) return invalid();
+
+    let data;
+    try {
+      data = JSON.parse(fromBase64url(payload).toString("utf8"));
+    } catch {
+      return invalid();
+    }
+    const issuedAt = Number(data?.iat);
+    if (!Number.isFinite(issuedAt) || issuedAt + sessionTtlMs <= now()) return invalid();
+
+    pruneRevoked();
+    if (revoked.has(token)) return invalid();
+
+    if (role === "admin") {
+      // 관리자 아이디가 바뀌면 예전 관리자 토큰은 쓸 수 없다.
+      if (!credentials.configured || data.a !== credentials.adminId) return invalid();
+      return { ok: true, role, adminId: data.a, sessionToken: token };
     }
 
-    return { ok: true, role: record.role, adminId: record.adminId, student: record.student, sessionToken };
+    const student = normalizeStudentInfo(data.s);
+    if (!student) return invalid();
+    return { ok: true, role, student, sessionToken: token };
   }
 
   function logout(sessionToken) {
-    sessions.delete(String(sessionToken || ""));
+    const token = String(sessionToken || "");
+    if (verify(token).ok) revoked.set(token, now() + sessionTtlMs);
     return { ok: true };
   }
 

@@ -11,9 +11,22 @@ services:
     envVars:
       - key: PROVIDER
         value: gemini
-      # 한 학교 학생들이 같은 인터넷 주소로 접속하므로 반 전체 사용량을 감안한다.
+      # 학생(로그인) 한 명당 분당 요청 수. 같은 학교도 학생별로 따로 센다.
       - key: MAX_PER_MIN
-        value: "150"
+        value: "60"
+      # 그림 모델 분당 한도 100(Google AI Studio 확인) → 여유 두고 90장/분, 동시 16장
+      - key: IMAGE_RPM_LIMIT
+        value: "90"
+      - key: IMAGE_MAX_CONCURRENT
+        value: "16"
+      # 학생 한 명당: 동화 2편(처음 + 다시 짓기 1번), 그림 14장
+      - key: STORY_LIMIT_PER_STUDENT
+        value: "2"
+      - key: IMAGE_LIMIT_PER_STUDENT
+        value: "14"
+      # 로그인 토큰 서명용 비밀값. Render가 한 번 만들어 두면 재시작해도 학생 로그인이 유지된다.
+      - key: SESSION_SECRET
+        generateValue: true
       # 2.5 모델은 새 사용자에게 막혀 있어 3.x 모델을 쓴다.
       - key: GEMINI_MODEL
         value: gemini-3.8-flash
@@ -21,8 +34,6 @@ services:
         value: gemini-3.1-flash-image
       - key: GEMINI_THINKING_LEVEL
         value: low
-      - key: GEMINI_VIDEO_MODEL
-        value: veo-3.1-fast-generate-preview
       - key: GEMINI_THINKING_BUDGET
         value: "0"
       # 이 프록시를 부를 수 있는 앱 주소 (끝 슬래시 없이)
@@ -30,8 +41,6 @@ services:
         value: https://geumsan-story.vercel.app
       # 비밀값은 저장소에 두지 않는다. Render 대시보드에서 직접 입력한다.
       - key: GEMINI_API_KEY
-        sync: false
-      - key: GEMINI_API_KEYS
         sync: false
       # 관리자 계정. ADMIN_PASSWORD_HASH는 비밀번호의 sha256 hex 값이다.
       # 둘 중 하나라도 없으면 로그인이 전부 막힌다(fail-closed).

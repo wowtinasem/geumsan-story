@@ -20,71 +20,116 @@ const geminiImageModel = process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-ima
 const geminiThinkingBudget = Number(process.env.GEMINI_THINKING_BUDGET ?? 0);
 // Gemini 3 이후 모델은 thinkingBudget 대신 thinkingLevel을 쓴다. 동화 글은 빠른 응답이 중요해서 기본 low.
 const geminiThinkingLevel = String(process.env.GEMINI_THINKING_LEVEL ?? "low").trim();
-// Veo 영상 생성용 공통 키/엔드포인트 (이미지·동화 호출과 동일한 GEMINI_API_KEY 사용)
-const geminiApiKey = process.env.GEMINI_API_KEY || "";
-const geminiBase = "https://generativelanguage.googleapis.com/v1beta";
-const veoModel = process.env.GEMINI_VIDEO_MODEL || "veo-3.1-fast-generate-preview";
-// Veo 클립 길이(초). 4/6/8만 허용. 기본 6(자연스러움+비용 절감). 잘못된 값이면 6으로 보정.
-const veoDurationSeconds = [4, 6, 8].includes(Number(process.env.GEMINI_VIDEO_SECONDS))
-  ? Number(process.env.GEMINI_VIDEO_SECONDS)
-  : 6;
-// 영상(Veo) 동시 처리 한도는 "프로젝트(=키)당 약 10개"라, 여러 키로 분산하면 동시성이 늘어난다.
-// GEMINI_API_KEYS="키1,키2,키3" 처럼 쉼표로 여러 개 넣을 수 있고, 없으면 GEMINI_API_KEY 한 개를 쓴다.
-const geminiVideoKeys = (process.env.GEMINI_API_KEYS || "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-if (!geminiVideoKeys.length && geminiApiKey) geminiVideoKeys.push(geminiApiKey);
-// 키 1개당 안전 동시 처리 수(공식 한도 10 미만으로 여유). 총 동시 = 키 수 × 이 값.
-const veoConcurrencyPerKey = Number(process.env.VEO_CONCURRENCY_PER_KEY || 8);
-// 대기열 최대 인원(메모리 보호). 초과 시 잠시 후 다시 시도 안내.
-const veoMaxQueue = Number(process.env.VEO_MAX_QUEUE || 80);
 const rateBuckets = new Map();
 const adminAccess = createAdminAccessStore();
 
-// 동시 이미지 생성 요청 수를 제한해 Gemini RPM 초과를 방지
-const MAX_CONCURRENT_IMAGE = 3;
-const MAX_QUEUE_SIZE = 12;
-let activeImageCount = 0;
-const imageQueue = [];
+// ---------------------------------------------------------------------------
+//  수업 동시 사용 대비 설정 (학생 최대 60명 동시)
+//  - Gemini 한도는 "프로젝트 단위"라 키를 여러 개 넣어도 늘지 않는다.
+//  - 그림 모델 분당 한도(RPM)가 100이라 여유를 두고 분당 90장까지만 보낸다.
+// ---------------------------------------------------------------------------
+const IMAGE_RPM_LIMIT = Number(process.env.IMAGE_RPM_LIMIT || 90);
+const IMAGE_MAX_CONCURRENT = Number(process.env.IMAGE_MAX_CONCURRENT || 16);
+const IMAGE_MAX_QUEUE = Number(process.env.IMAGE_MAX_QUEUE || 400);
+// 한 요청이 대기 줄에서 기다리는 최대 시간. 넘으면 "잠시 뒤 다시"로 돌려보내고 브라우저가 자동으로 다시 줄을 선다.
+// (Render 앞단 Cloudflare가 아주 긴 요청을 끊을 수 있어 한 요청은 짧게 유지한다.)
+const IMAGE_QUEUE_WAIT_MS = Number(process.env.IMAGE_QUEUE_WAIT_MS || 40000);
+// 학생 한 명(학교·학년·번호·이름)이 쓸 수 있는 최대 횟수. 관리자는 제한 없음.
+const STORY_LIMIT_PER_STUDENT = Number(process.env.STORY_LIMIT_PER_STUDENT || 2); // 처음 1번 + 다시 짓기 1번
+const IMAGE_LIMIT_PER_STUDENT = Number(process.env.IMAGE_LIMIT_PER_STUDENT || 14); // 6장 × 2편 + 다시 그리기 2장
+// MOCK_AI=1 이면 Gemini 대신 가짜 글·그림을 돌려준다(부하 시험용, 비용 없음).
+const MOCK_AI = process.env.MOCK_AI === "1";
 
-function acquireImageSlot(timeoutMs = 30000) {
+let activeImageCount = 0;
+const imageQueue = []; // 대기 중인 { activate, timer }
+const imageStartTimes = []; // 최근 60초 동안 Gemini로 보낸 시각
+const imageStats = { done: 0, failed: 0, busyReturned: 0, totalMs: 0 };
+
+function pruneImageStarts(t) {
+  while (imageStartTimes.length && imageStartTimes[0] <= t - 60000) imageStartTimes.shift();
+}
+
+function canStartImage(t = Date.now()) {
+  pruneImageStarts(t);
+  return activeImageCount < IMAGE_MAX_CONCURRENT && imageStartTimes.length < IMAGE_RPM_LIMIT;
+}
+
+let pumpTimer = null;
+function pumpImageQueue() {
+  const t = Date.now();
+  while (imageQueue.length && canStartImage(t)) {
+    const next = imageQueue.shift();
+    clearTimeout(next.timer);
+    next.activate();
+  }
+  // 분당 한도 때문에 멈췄다면, 가장 오래된 기록이 1분을 지나는 순간 다시 시도한다.
+  if (imageQueue.length && !pumpTimer && activeImageCount < IMAGE_MAX_CONCURRENT && imageStartTimes.length) {
+    const wait = Math.max(50, imageStartTimes[0] + 60000 - t + 10);
+    pumpTimer = setTimeout(() => {
+      pumpTimer = null;
+      pumpImageQueue();
+    }, wait);
+  }
+}
+
+function acquireImageSlot(timeoutMs = IMAGE_QUEUE_WAIT_MS) {
   return new Promise((resolve, reject) => {
-    if (activeImageCount >= MAX_CONCURRENT_IMAGE && imageQueue.length >= MAX_QUEUE_SIZE) {
+    if (imageQueue.length >= IMAGE_MAX_QUEUE) {
       return reject(new Error("image_queue_full"));
     }
 
     const release = () => {
       activeImageCount--;
-      const next = imageQueue.shift();
-      if (next) next();
+      pumpImageQueue();
     };
-
-    let timer = null;
-
     const activate = () => {
-      clearTimeout(timer);
       activeImageCount++;
+      imageStartTimes.push(Date.now());
       resolve(release);
     };
 
-    if (activeImageCount < MAX_CONCURRENT_IMAGE) {
-      return activate();
-    }
+    if (!imageQueue.length && canStartImage()) return activate();
 
-    timer = setTimeout(() => {
-      const idx = imageQueue.indexOf(activate);
+    const entry = { activate, timer: null };
+    entry.timer = setTimeout(() => {
+      const idx = imageQueue.indexOf(entry);
       if (idx >= 0) imageQueue.splice(idx, 1);
       reject(new Error("image_queue_timeout"));
     }, timeoutMs);
-
-    imageQueue.push(activate);
+    imageQueue.push(entry);
+    pumpImageQueue();
   });
 }
 
+function imageQueueStatus() {
+  pruneImageStarts(Date.now());
+  return {
+    active: activeImageCount,
+    waiting: imageQueue.length,
+    startedLastMinute: imageStartTimes.length,
+    rpmLimit: IMAGE_RPM_LIMIT,
+    maxConcurrent: IMAGE_MAX_CONCURRENT,
+    done: imageStats.done,
+    failed: imageStats.failed,
+    busyReturned: imageStats.busyReturned,
+    avgSeconds: imageStats.done ? Math.round(imageStats.totalMs / imageStats.done / 100) / 10 : 0
+  };
+}
+
+// 학생별 사용 횟수 (서버 메모리. 재시작하면 0부터 다시 센다)
+const usageCounters = new Map();
+function usageKey(access) {
+  if (!access || access.role !== "student" || !access.student) return null;
+  const { school, grade, number, name } = access.student;
+  return `${school}|${grade}|${number}|${name}`;
+}
+function usageOf(key) {
+  if (!usageCounters.has(key)) usageCounters.set(key, { stories: 0, images: 0 });
+  return usageCounters.get(key);
+}
+
 app.use(cors({ origin: corsOrigin }));
-// 영상 생성(/api/video/start)은 그림 data URL(수 MB)을 본문에 담아 보내므로 한도를 키운다.
-app.use(express.json({ limit: "12mb" }));
+app.use(express.json({ limit: "1mb" }));
 
 const providers = {
   gemini: {
@@ -121,9 +166,15 @@ function selectedProvider() {
   return providers[providerName] || providers.gemini;
 }
 
-function isRateLimited(ip) {
+// 한 학교 학생들은 같은 인터넷 주소를 쓰므로, 로그인한 사람별로 센다. 로그인 전이면 주소로 센다.
+function rateKey(req) {
+  const token = String(req.body?.sessionToken || "");
+  return token ? `t:${token.slice(-24)}` : `ip:${req.ip}`;
+}
+
+function isRateLimited(key) {
   const now = Date.now();
-  const bucket = rateBuckets.get(ip) || { count: 0, resetAt: now + 60000 };
+  const bucket = rateBuckets.get(key) || { count: 0, resetAt: now + 60000 };
 
   if (now > bucket.resetAt) {
     bucket.count = 0;
@@ -131,7 +182,10 @@ function isRateLimited(ip) {
   }
 
   bucket.count += 1;
-  rateBuckets.set(ip, bucket);
+  rateBuckets.set(key, bucket);
+  if (rateBuckets.size > 5000) {
+    for (const [k, b] of rateBuckets) if (now > b.resetAt) rateBuckets.delete(k);
+  }
   return bucket.count > maxPerMinute;
 }
 
@@ -594,18 +648,43 @@ async function callGeminiImage(prompt) {
   return extractGeminiImageResult(data);
 }
 
-async function callGeminiImageWithRetry(prompt) {
+function isTransientProviderError(error) {
+  const msg = String(error?.message || "").toLowerCase();
+  return (
+    error?.name === "AbortError" ||
+    msg.includes("429") ||
+    msg.includes("500") ||
+    msg.includes("502") ||
+    msg.includes("503") ||
+    msg.includes("504") ||
+    msg.includes("quota") ||
+    msg.includes("rate") ||
+    msg.includes("overloaded") ||
+    msg.includes("unavailable") ||
+    msg.includes("aborted")
+  );
+}
+
+async function callGeminiImageWithRetry(prompt, startedAt = Date.now()) {
   try {
     return await callGeminiImage(prompt);
   } catch (error) {
-    const msg = String(error?.message || "").toLowerCase();
-    if (msg.includes("429") || msg.includes("quota") || msg.includes("rate")) {
-      console.warn("Gemini image 429 — 3초 후 재시도");
+    // 한 요청이 너무 길어지지 않도록, 아직 30초가 안 지났을 때만 서버에서 한 번 더 시도한다.
+    // 그 뒤의 재시도는 브라우저가 대기 안내를 보여 주며 맡는다.
+    if (isTransientProviderError(error) && Date.now() - startedAt < 30000) {
+      console.warn("Gemini 그림 일시 오류 — 3초 후 재시도:", String(error?.message || "").slice(0, 120));
       await new Promise((r) => setTimeout(r, 3000));
       return callGeminiImage(prompt);
     }
     throw error;
   }
+}
+
+// 부하 시험용 가짜 응답 (MOCK_AI=1)
+const MOCK_IMAGE_B64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+function mockDelay(minMs, maxMs) {
+  return new Promise((r) => setTimeout(r, minMs + Math.random() * (maxMs - minMs)));
 }
 
 function validateSelection(selection) {
@@ -632,9 +711,8 @@ app.get("/api/health", (req, res) => {
     imageKeyLoaded: Boolean(providers.gemini.key),
     thinkingBudget: geminiThinkingBudget,
     thinkingLevel: geminiThinkingLevel,
-    videoModel: veoModel,
-    videoSeconds: veoDurationSeconds,
-    videoKeys: geminiVideoKeys.length,
+    mock: MOCK_AI,
+    imageQueue: imageQueueStatus(),
     adminConfigured: adminAccess.configured
   });
 });
@@ -693,7 +771,7 @@ app.post("/api/admin-models", async (req, res) => {
       name: String(model.name || "").replace(/^models\//, ""),
       methods: model.supportedGenerationMethods || []
     }));
-    return res.json({ configured: { text: providers.gemini.model, image: geminiImageModel, video: veoModel }, models });
+    return res.json({ configured: { text: providers.gemini.model, image: geminiImageModel }, models });
   } catch (error) {
     console.error(error);
     return res.status(502).json({ error: "list_failed" });
@@ -714,21 +792,24 @@ app.post(["/api/class-login", "/api/class-reset"], (req, res) => {
 // 브라우저가 만든 토큰이나 localStorage 조작으로는 뚫리지 않는다.
 function denyUnlessSignedIn(req, res) {
   const access = adminAccess.verify(req.body?.sessionToken);
-  if (access.ok) return null;
+  if (access.ok) {
+    req.access = access;
+    return null;
+  }
 
   res.status(401).json({ error: "auth_required", ...access });
   return access;
 }
 
 app.post("/api/story", async (req, res) => {
-  if (isRateLimited(req.ip)) {
+  if (isRateLimited(rateKey(req))) {
     return res.status(429).json({ error: "rate_limited" });
   }
 
   if (denyUnlessSignedIn(req, res)) return undefined;
 
   const provider = selectedProvider();
-  if (!provider.key) {
+  if (!provider.key && !MOCK_AI) {
     return res.status(503).json({ error: "missing_api_key" });
   }
 
@@ -737,26 +818,52 @@ app.post("/api/story", async (req, res) => {
     return res.status(400).json({ error: "invalid_selection" });
   }
 
+  const key = usageKey(req.access);
+  if (key && usageOf(key).stories >= STORY_LIMIT_PER_STUDENT) {
+    return res.status(403).json({
+      error: "usage_limit",
+      reason: "story_limit",
+      message: `동화는 한 사람당 ${STORY_LIMIT_PER_STUDENT}번까지 만들 수 있어요. 지금 동화로 그림과 PDF를 완성해 보세요.`
+    });
+  }
+  if (key) usageOf(key).stories += 1;
+
   try {
+    if (MOCK_AI) {
+      await mockDelay(1500, 3500);
+      const name = selection.character?.name || "주인공";
+      return res.json({
+        scenes: Array.from({ length: 6 }, (_, i) => `${name}의 시험용 이야기 ${i + 1}쪽입니다. 부하 시험 중이라 실제 AI 글이 아니에요.`),
+        provider: "mock"
+      });
+    }
     const prompt = buildPrompt(selection, req.body?.grade);
-    const rawText = await provider.call(provider, prompt);
+    let rawText;
+    try {
+      rawText = await provider.call(provider, prompt);
+    } catch (error) {
+      if (!isTransientProviderError(error)) throw error;
+      await new Promise((r) => setTimeout(r, 2000));
+      rawText = await provider.call(provider, prompt);
+    }
     const scenes = parseScenes(rawText);
     return res.json({ scenes, provider: providerName in providers ? providerName : "gemini" });
   } catch (error) {
     console.error(error);
+    if (key) usageOf(key).stories = Math.max(0, usageOf(key).stories - 1);
     const response = toProviderErrorResponse(error, "provider_failed");
     return res.status(response.statusCode).json(response.body);
   }
 });
 
 app.post("/api/image", async (req, res) => {
-  if (isRateLimited(req.ip)) {
+  if (isRateLimited(rateKey(req))) {
     return res.status(429).json({ error: "rate_limited" });
   }
 
   if (denyUnlessSignedIn(req, res)) return undefined;
 
-  if (!providers.gemini.key) {
+  if (!providers.gemini.key && !MOCK_AI) {
     return res.status(503).json({ error: "missing_gemini_api_key" });
   }
 
@@ -768,292 +875,58 @@ app.post("/api/image", async (req, res) => {
     return res.status(400).json({ error: "invalid_image_request" });
   }
 
-  let release;
-  try {
-    release = await acquireImageSlot(30000);
-  } catch {
-    return res.status(429).json({
-      error: "image_quota_exceeded",
-      message: "이미지 생성 요청이 많아요. 잠시 뒤 다시 눌러 주세요.",
-      retryAfterSeconds: 15
+  const key = usageKey(req.access);
+  if (key && usageOf(key).images >= IMAGE_LIMIT_PER_STUDENT) {
+    return res.status(403).json({
+      error: "usage_limit",
+      message: `그림은 한 사람당 ${IMAGE_LIMIT_PER_STUDENT}장까지 만들 수 있어요. 지금까지 만든 그림으로 PDF를 저장해 주세요.`
     });
   }
 
+  const startedAt = Date.now();
+  let release;
+  try {
+    release = await acquireImageSlot();
+  } catch (error) {
+    imageStats.busyReturned += 1;
+    const status = imageQueueStatus();
+    return res.status(429).json({
+      error: "image_busy",
+      message: "친구들이 그림을 많이 만들고 있어요. 순서를 기다리는 중이에요.",
+      waiting: status.waiting,
+      retryAfterSeconds: String(error?.message).includes("full") ? 10 : 2
+    });
+  }
+
+  if (key) usageOf(key).images += 1;
   try {
     const prompt = buildImagePrompt(selection, scene, pageIndex);
-    const { b64, mimeType } = await callGeminiImageWithRetry(prompt);
-    return res.json({ imageBase64: b64, mimeType, prompt, provider: "gemini", model: geminiImageModel });
+    let result;
+    if (MOCK_AI) {
+      await mockDelay(7000, 13000);
+      result = { b64: MOCK_IMAGE_B64, mimeType: "image/png" };
+    } else {
+      result = await callGeminiImageWithRetry(prompt, startedAt);
+    }
+    imageStats.done += 1;
+    imageStats.totalMs += Date.now() - startedAt;
+    return res.json({ imageBase64: result.b64, mimeType: result.mimeType, prompt, provider: MOCK_AI ? "mock" : "gemini", model: geminiImageModel });
   } catch (error) {
     console.error(error);
+    imageStats.failed += 1;
+    if (key) usageOf(key).images = Math.max(0, usageOf(key).images - 1);
+    if (isTransientProviderError(error)) {
+      return res.status(429).json({
+        error: "image_busy",
+        message: "그림을 만드는 곳이 잠시 바빠요. 곧 다시 시도할게요.",
+        retryAfterSeconds: 5
+      });
+    }
     const response = toProviderErrorResponse(error, "image_provider_failed");
     return res.status(response.statusCode).json(response.body);
   } finally {
     if (release) release();
   }
-});
-
-// ===========================================================================
-//  Veo 영상 생성 (선택한 한 쪽 그림을 8초 클립으로 변환)
-//  - 이미지/동화 호출과 동일한 geminiApiKey, 전역 fetch 사용
-//  - 비동기 작업: start로 작업 시작 → status 폴링으로 완료 확인
-// ===========================================================================
-
-// jobId -> {
-//   status: "queued"|"running"|"done"|"error",
-//   prompt, imageData, imageMime,        // 대기 중 보관(시작되면 imageData는 비움)
-//   apiKey, opName, videoBase64, mimeType, error,
-//   createdAt, enqueuedAt, startedAt, finishedAt, lastPoll, retryAfter
-// }
-const videoJobs = new Map();
-const VIDEO_JOB_TTL = 30 * 60 * 1000;
-
-// 키별 현재 처리(in-flight) 수
-const keyInFlight = new Map(geminiVideoKeys.map((k) => [k, 0]));
-const incKey = (k) => keyInFlight.set(k, (keyInFlight.get(k) || 0) + 1);
-const decKey = (k) => keyInFlight.set(k, Math.max(0, (keyInFlight.get(k) || 0) - 1));
-// 할당량(429)에 걸린 키는 잠시 쉬게 한다(이 시각 전까지 건너뜀).
-// 한 프로젝트가 하루 한도를 다 써도, 남은 프로젝트(키)로 자동 분배되도록.
-const keyCooldownUntil = new Map();
-const KEY_COOLDOWN_MS = 2 * 60 * 1000;
-// 여유 슬롯이 있는 키를 찾는다(쿨다운 중인 키는 건너뛰고, 가장 한가한 키 우선).
-function pickFreeKey() {
-  const now = Date.now();
-  let best = null;
-  let bestLoad = veoConcurrencyPerKey;
-  for (const k of geminiVideoKeys) {
-    if (now < (keyCooldownUntil.get(k) || 0)) continue; // 할당량 초과로 쉬는 키
-    const load = keyInFlight.get(k) || 0;
-    if (load < bestLoad) {
-      best = k;
-      bestLoad = load;
-    }
-  }
-  return best;
-}
-function totalCapacity() {
-  return geminiVideoKeys.length * veoConcurrencyPerKey;
-}
-function queuedJobsSorted() {
-  return [...videoJobs.values()]
-    .filter((j) => j.status === "queued")
-    .sort((a, b) => a.enqueuedAt - b.enqueuedAt);
-}
-function queuePosition(job) {
-  const q = queuedJobsSorted();
-  const idx = q.findIndex((j) => j === job);
-  return idx < 0 ? 0 : idx + 1;
-}
-
-function finishJob(job, status, message) {
-  job.status = status;
-  if (message) job.error = message;
-  job.finishedAt = Date.now();
-  if (job.apiKey) {
-    decKey(job.apiKey);
-    job.apiKey = null;
-  }
-  job.imageData = null; // 메모리 회수
-}
-
-// 대기 중인 작업을 빈 슬롯에 실제로 Veo로 보낸다.
-async function dispatchJob(job) {
-  const key = pickFreeKey();
-  if (!key) return false;
-  job.apiKey = key;
-  job.status = "running";
-  job.startedAt = Date.now();
-  incKey(key);
-  try {
-    const body = {
-      instances: [{ prompt: job.prompt, image: { bytesBase64Encoded: job.imageData, mimeType: job.imageMime } }],
-      // durationSeconds는 4/6/8만 가능. 짧을수록 비용↓(초당 과금). 자연스러움 위해 기본 6초.
-      parameters: { aspectRatio: "16:9", durationSeconds: veoDurationSeconds }
-    };
-    const r = await fetch(`${geminiBase}/models/${veoModel}:predictLongRunning?key=${key}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
-    const j = await r.json();
-    if (!r.ok || !j.name) {
-      // 할당량 초과(429)는 일시적일 수 있으니 슬롯을 비우고 잠시 후 재시도(대기 상태로 되돌림).
-      decKey(key);
-      job.apiKey = null;
-      if (r.status === 429 || j?.error?.status === "RESOURCE_EXHAUSTED") {
-        // 이 키(프로젝트)는 할당량에 걸렸으니 잠시 쉬게 하고, 남은 키로 분배되게 한다.
-        keyCooldownUntil.set(key, Date.now() + KEY_COOLDOWN_MS);
-        // 빈 슬롯이 있었는데도 429라면 "줄이 밀려서"가 아니라 실제 할당량 문제.
-        // 모든 키가 다 막혔을 때만(=계속 재시도해도 빈 키 없음) 오래 매달리지 말고 분명히 알린다.
-        job.quotaStrikes = (job.quotaStrikes || 0) + 1;
-        if (job.quotaStrikes >= 3) {
-          finishJob(
-            job,
-            "error",
-            "지금은 영상 생성 사용량(할당량)을 초과했어요. 잠시 후 다시 시도하거나 선생님께 알려 주세요."
-          );
-          return true;
-        }
-        job.status = "queued";
-        job.retryAfter = Date.now() + 8000;
-        return false;
-      }
-      finishJob(job, "error", j?.error?.message || "영상 생성을 시작하지 못했어요");
-      return true;
-    }
-    job.opName = j.name;
-    job.imageData = null; // 제출 완료 → 큰 이미지 데이터 회수
-    job.lastPoll = 0;
-    return true;
-  } catch (error) {
-    // 네트워크 등 일시 오류 → 슬롯 비우고 잠시 후 재시도
-    decKey(key);
-    job.apiKey = null;
-    job.status = "queued";
-    job.retryAfter = Date.now() + 15000;
-    return false;
-  }
-}
-
-// 진행 중(running) 작업의 Veo 작업 상태를 폴링해 완료/실패를 반영하고 슬롯을 비운다.
-async function pollRunningJob(job) {
-  try {
-    const r = await fetch(`${geminiBase}/${job.opName}?key=${job.apiKey}`);
-    const j = await r.json();
-    if (!j.done) return;
-
-    const sample =
-      j?.response?.generateVideoResponse?.generatedSamples?.[0] ||
-      j?.response?.generatedSamples?.[0] ||
-      j?.response?.videos?.[0];
-    const inline = sample?.video?.bytesBase64Encoded || sample?.bytesBase64Encoded;
-    const fileUri = sample?.video?.uri || sample?.uri;
-
-    if (inline) {
-      job.videoBase64 = inline;
-      job.mimeType = sample?.video?.mimeType || "video/mp4";
-      finishJob(job, "done");
-      return;
-    }
-    if (fileUri) {
-      const fr = await fetch(`${fileUri}${fileUri.includes("?") ? "&" : "?"}key=${job.apiKey}`);
-      const buf = Buffer.from(await fr.arrayBuffer());
-      job.videoBase64 = buf.toString("base64");
-      job.mimeType = fr.headers.get("content-type") || "video/mp4";
-      finishJob(job, "done");
-      return;
-    }
-    finishJob(job, "error", "영상 결과를 해석하지 못했어요");
-  } catch (error) {
-    // 일시 오류는 다음 틱에서 재시도
-  }
-}
-
-// 스케줄러: running 폴링 → 빈 슬롯에 대기열 배정 → 오래된 작업 정리
-let veoTicking = false;
-async function veoTick() {
-  if (veoTicking) return;
-  veoTicking = true;
-  try {
-    const now = Date.now();
-    // 1) 진행 중 작업 폴링(작업당 5초 간격)
-    const running = [...videoJobs.values()].filter((j) => j.status === "running" && j.opName);
-    await Promise.all(
-      running.map((job) => {
-        if (now - (job.lastPoll || 0) < 5000) return null;
-        job.lastPoll = now;
-        // 너무 오래(8분) 걸리면 실패 처리
-        if (job.startedAt && now - job.startedAt > 8 * 60 * 1000) {
-          finishJob(job, "error", "영상 만들기가 너무 오래 걸려요. 다시 시도해 주세요.");
-          return null;
-        }
-        return pollRunningJob(job);
-      })
-    );
-    // 2) 빈 슬롯이 있으면 대기열에서 꺼내 배정
-    for (const job of queuedJobsSorted()) {
-      if (job.retryAfter && now < job.retryAfter) continue;
-      if (!pickFreeKey()) break;
-      await dispatchJob(job);
-    }
-    // 3) 완료/오래된 작업 정리
-    for (const [id, job] of videoJobs) {
-      if (now - job.createdAt > VIDEO_JOB_TTL) videoJobs.delete(id);
-    }
-  } finally {
-    veoTicking = false;
-  }
-}
-if (geminiVideoKeys.length) {
-  setInterval(() => {
-    veoTick().catch(() => undefined);
-  }, 3000).unref?.();
-}
-
-// data URL("data:image/png;base64,....")에서 mime/base64 분리
-function splitDataUrl(dataUrl) {
-  const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl || "");
-  if (!m) return null;
-  return { mimeType: m[1], data: m[2] };
-}
-
-// 1) 영상 생성 요청을 "대기열"에 넣고 작업ID 반환 (실제 Veo 호출은 스케줄러가 빈 슬롯에 배정).
-//    이렇게 하면 동시 한도(키당 ~10) 안에서 30명을 줄 세워 안전하게 처리한다.
-app.post("/api/video/start", async (req, res) => {
-  if (isRateLimited(req.ip)) {
-    return res.status(429).json({ message: "요청이 많아요. 잠시 후 다시 시도해 주세요." });
-  }
-  if (!geminiVideoKeys.length) {
-    return res.status(503).json({ message: "영상 API 키가 설정되지 않았어요." });
-  }
-
-  // 영상은 Veo 할당량을 크게 쓰므로 관리자 세션을 항상 요구한다.
-  if (denyUnlessSignedIn(req, res)) return undefined;
-
-  const img = splitDataUrl(req.body?.imageDataUrl);
-  if (!img) return res.status(400).json({ message: "그림 데이터가 올바르지 않아요" });
-
-  // 대기열이 너무 길면 보호(메모리/경험). 잠시 후 다시 시도하도록 안내.
-  if (queuedJobsSorted().length >= veoMaxQueue) {
-    return res.status(429).json({ message: "지금 만들기를 기다리는 친구가 많아요. 잠시 후 다시 눌러 주세요." });
-  }
-
-  const now = Date.now();
-  const jobId = randomUUID();
-  videoJobs.set(jobId, {
-    status: "queued",
-    prompt:
-      req.body?.prompt ||
-      "Animate this children's storybook illustration with gentle, subtle motion. Soft camera move, the character moves slightly and naturally. Keep the same art style, characters, and colors. No text, no captions.",
-    imageData: img.data,
-    imageMime: img.mimeType,
-    apiKey: null,
-    opName: null,
-    createdAt: now,
-    enqueuedAt: now
-  });
-
-  const position = queuePosition(videoJobs.get(jobId));
-  res.json({ jobId, position, capacity: totalCapacity() });
-  // 빈 슬롯이 있으면 즉시 배정 시도(다음 틱을 기다리지 않도록)
-  veoTick().catch(() => undefined);
-});
-
-// 2) 작업 상태 확인(폴링) → 대기 순번 / 진행 / 완료(영상 base64) 반환
-//    실제 Veo 폴링은 스케줄러(veoTick)가 하므로 여기서는 저장된 상태만 읽는다.
-app.get("/api/video/status", (req, res) => {
-  const job = videoJobs.get(req.query.jobId);
-  if (!job) return res.json({ status: "error", message: "작업을 찾을 수 없어요" });
-
-  if (job.status === "queued") {
-    return res.json({ status: "queued", position: queuePosition(job), capacity: totalCapacity() });
-  }
-  if (job.status === "running") {
-    return res.json({ status: "running" });
-  }
-  if (job.status === "done") {
-    return res.json({ status: "done", videoBase64: job.videoBase64, mimeType: job.mimeType });
-  }
-  return res.json({ status: "error", message: job.error || "영상 만들기에 실패했어요" });
 });
 
 app.listen(port, () => {
@@ -1062,6 +935,6 @@ app.listen(port, () => {
   console.log(`Provider: ${providerName in providers ? providerName : "gemini"} / ${provider.model}`);
   console.log(`API key loaded: ${Boolean(provider.key)}`);
   console.log(
-    `Veo: model=${veoModel}, keys=${geminiVideoKeys.length}, perKey=${veoConcurrencyPerKey}, totalConcurrent=${geminiVideoKeys.length * veoConcurrencyPerKey}`
+    `Image limits: ${IMAGE_RPM_LIMIT}/min, ${IMAGE_MAX_CONCURRENT} at once, queue ${IMAGE_MAX_QUEUE}; per student ${STORY_LIMIT_PER_STUDENT} stories / ${IMAGE_LIMIT_PER_STUDENT} images${MOCK_AI ? " [MOCK_AI]" : ""}`
   );
 });

@@ -11,7 +11,6 @@ import {
   MusicalNoteIcon,
   PrinterIcon,
   SparklesIcon,
-  VideoCameraIcon,
   FilmIcon
 } from "@heroicons/react/24/solid";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -33,7 +32,6 @@ import { characters, eventGroups, places, traits } from "./storyData";
 import { isGeneratedSceneImage } from "./imageGeneration";
 import { checkProxyHealth, generateSceneImage, generateStory, localStory } from "./storyEngine";
 import { buildStoryVideo } from "./storyVideo";
-import { generatePageVideo } from "./storyVideoApi";
 import {
   defaultMusicGenreId,
   getMusicGenre,
@@ -931,11 +929,8 @@ export function StoryKioskApp() {
   }, []);
 
   // 동화 영상 만들기 상태
-  const [videoPageIndex, setVideoPageIndex] = useState(2); // 기본: 절정 부근(3쪽)
-  const [videoPhase, setVideoPhase] = useState<"idle" | "clip" | "render" | "ready">("idle");
+  const [videoPhase, setVideoPhase] = useState<"idle" | "render" | "ready">("idle");
   const [videoMessage, setVideoMessage] = useState("");
-  const [clipUrl, setClipUrl] = useState<string | null>(null);
-  const [clipPageIndex, setClipPageIndex] = useState<number | null>(null);
   // 완성된 동화 영상(미리보기/다운로드 공용). 한 번 만들면 재생도, 다운로드도 이걸로 한다.
   const [storyVideoUrl, setStoryVideoUrl] = useState<string | null>(null);
   const [storyVideoName, setStoryVideoName] = useState("");
@@ -1209,24 +1204,52 @@ export function StoryKioskApp() {
     setImageGenerationMessage("");
     let nextImages = { ...sceneImages };
 
+    const todo = indices.filter((index) => !nextImages[index] && story.pages[index]);
+    const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
     try {
-      for (const index of indices) {
-        if (nextImages[index]) continue;
-
+      let stopped = false;
+      for (let n = 0; n < todo.length && !stopped; n += 1) {
+        const index = todo[n];
         const scene = story.pages[index];
-        if (!scene) continue;
+        const label = todo.length > 1 ? `그림 ${n + 1}/${todo.length}` : "그림";
+        let busyTries = 0;
+        let errorTries = 0;
 
-        const image = await generateSceneImage(selection, scene, index, mode, { classId, sessionToken: classSessionToken });
-        if (isGeneratedSceneImage(image)) {
-          nextImages = { ...nextImages, [index]: image.imageDataUrl };
-          setSceneImages(nextImages);
-          persistActiveStoryImages(nextImages);
-        } else if (image?.message) {
-          setImageGenerationMessage(image.message);
+        while (true) {
+          setImageGenerationMessage(`${label} 만드는 중이에요… 금삼이가 열심히 그리고 있어요.`);
+          const image = await generateSceneImage(selection, scene, index, mode, { classId, sessionToken: classSessionToken });
+
+          if (isGeneratedSceneImage(image)) {
+            nextImages = { ...nextImages, [index]: image.imageDataUrl };
+            setSceneImages(nextImages);
+            persistActiveStoryImages(nextImages);
+            break;
+          }
+
+          // 친구들이 많아 순서를 기다려야 할 때: 안내를 보여 주고 자동으로 다시 줄을 선다 (최대 약 8분)
+          if (image && "error" in image && image.error === "image_busy" && busyTries < 12) {
+            busyTries += 1;
+            const waiting = image.waiting ? ` (지금 기다리는 그림 ${image.waiting}장)` : "";
+            setImageGenerationMessage(`${label}: 친구들이 많아 순서를 기다리는 중이에요${waiting}. 화면을 그대로 두세요.`);
+            await wait(Math.max(2, image.retryAfterSeconds || 3) * 1000);
+            continue;
+          }
+
+          // 연결이 잠깐 끊기거나 한 번 실패한 경우: 두 번까지 조용히 다시 시도
+          if (image && "error" in image && (image.error === "network_error" || image.error === "image_provider_failed") && errorTries < 2) {
+            errorTries += 1;
+            await wait(4000 * errorTries);
+            continue;
+          }
+
+          setImageGenerationMessage(image?.message || "그림을 만들지 못했어요. 잠시 뒤 다시 눌러 주세요.");
+          stopped = true;
           break;
         }
       }
 
+      if (!stopped) setImageGenerationMessage("");
       return nextImages;
     } finally {
       setImageGenerationMode(null);
@@ -1252,51 +1275,6 @@ export function StoryKioskApp() {
     });
   }
 
-  // 선택한 한 쪽을 Veo로 "움직이는 클립"으로 만든다 (유일한 유료 단계)
-  async function makeSceneClip() {
-    if (videoPhase === "clip") return;
-    setVideoPhase("clip");
-    setVideoMessage("그림을 준비하고 있어요…");
-    try {
-      // 그 쪽 그림이 아직 없으면 먼저 생성
-      let images = sceneImages;
-      if (!images[videoPageIndex]) {
-        images = await generateStoryImages([videoPageIndex], "print");
-      }
-      const baseImage = images[videoPageIndex];
-      if (!baseImage) throw new Error("그림을 먼저 만들어야 해요");
-
-      setVideoMessage("움직이는 그림을 만들고 있어요… (1~2분 걸려요)");
-      const prompt = `Gently animate this children's storybook illustration of ${heroName.trim() || "the main character"} at ${place.name}. Subtle, soft motion only — keep the exact same character, outfit, art style, and colors. No new text.`;
-
-      const url = await generatePageVideo({
-        imageDataUrl: baseImage,
-        prompt,
-        classId,
-        sessionToken: classSessionToken,
-        onProgress: (info) => {
-          if (info.phase === "queued" && info.position && info.position > 1) {
-            setVideoMessage(`친구들이 만드는 중이라 잠시 기다려요… (대기 ${info.position}번째)`);
-          } else {
-            setVideoMessage(`움직이는 그림을 만들고 있어요… (${info.elapsedSec}초)`);
-          }
-        }
-      });
-
-      if (clipUrl) URL.revokeObjectURL(clipUrl);
-      setClipUrl(url);
-      setClipPageIndex(videoPageIndex);
-      // 새 움직이는 그림이 생겼으니 이전 미리보기 영상은 무효화(다시 만들도록)
-      if (storyVideoUrl) URL.revokeObjectURL(storyVideoUrl);
-      setStoryVideoUrl(null);
-      setVideoPhase("ready");
-      setVideoMessage("움직이는 그림이 완성됐어요! 이제 ‘영상 미리보기’로 확인해 보세요.");
-    } catch (e) {
-      setVideoPhase("idle");
-      setVideoMessage(e instanceof Error ? e.message : "영상 만들기에 실패했어요. 다시 해볼까요?");
-    }
-  }
-
   // 만들어 둔 영상(blob URL)을 파일로 내려받기
   function saveBlobUrl(url: string, fileName: string) {
     const link = document.createElement("a");
@@ -1311,13 +1289,8 @@ export function StoryKioskApp() {
   // 만든 영상은 storyVideoUrl에 보관해 미리보기 재생과 다운로드에 함께 쓴다.
   async function makeStoryVideo(autoDownload: boolean) {
     if (videoPhase === "render") return;
-    const useClip = Boolean(clipUrl) && clipPageIndex != null;
     setVideoPhase("render");
-    setVideoMessage(
-      useClip
-        ? "동화를 영상으로 묶고 있어요… 끝날 때까지 화면을 켜 두세요."
-        : "정지 그림으로 동화 영상을 만들고 있어요… 끝날 때까지 화면을 켜 두세요."
-    );
+    setVideoMessage("동화를 영상으로 묶고 있어요… 끝날 때까지 화면을 켜 두세요.");
     try {
       const allImages = printableImagesReady ? sceneImages : await generatePrintableImages();
       const imageList = IMAGE_PAGES.map((i) => allImages[i] || null);
@@ -1327,8 +1300,8 @@ export function StoryKioskApp() {
         footer: `${place.name} · ${classId || "연습 아이디"}`,
         pages: story.pages,
         images: imageList,
-        animatedIndex: useClip ? (clipPageIndex as number) : -1,
-        animatedVideoUrl: useClip ? (clipUrl as string) : "",
+        animatedIndex: -1,
+        animatedVideoUrl: "",
         musicSrc: selectedMusicGenre.audioSrc,
         musicVolume: selectedMusicGenre.volume,
         onProgress: (ratio) => setVideoMessage(`동화를 영상으로 묶고 있어요… (${Math.round(ratio * 100)}%)`)
@@ -2067,46 +2040,13 @@ export function StoryKioskApp() {
                       🎬 동화 영상 만들기
                     </p>
                     <p className="mb-2 text-[11px] font-bold text-[#D4F5FF]/80">
-                      &ldquo;영상 미리보기&rdquo;로 재생해 보고 &ldquo;영상 다운로드&rdquo;로 저장하세요. 한 장면을 움직이게 하려면 쪽을 고르고 &ldquo;한 쪽 움직임&rdquo;을 먼저 누르면 돼요(선택).
+                      &ldquo;영상 미리보기&rdquo;로 재생해 보고 &ldquo;영상 다운로드&rdquo;로 저장하세요.
                       배경음악은 위에서 고른 <span className="text-[#FFE9B0]">{selectedMusicGenre.label}</span>이(가) 영상에 자동으로 들어가요 🎵
                     </p>
-                    <div className="mb-2 grid grid-cols-6 gap-1.5">
-                      {IMAGE_PAGES.map((i) => {
-                        const active = videoPageIndex === i;
-                        const made = clipPageIndex === i;
-                        return (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => setVideoPageIndex(i)}
-                            disabled={videoPhase === "clip" || videoPhase === "render"}
-                            className={[
-                              "min-h-9 rounded-xl border px-2 text-xs font-black transition active:scale-[0.98] disabled:opacity-50",
-                              active
-                                ? "border-[#FFB15D] bg-[#F0633C] text-white"
-                                : "border-[#73DFFF]/25 bg-[#151F41] text-[#D4F5FF]"
-                            ].join(" ")}
-                          >
-                            {i + 1}쪽{made ? " ✓" : ""}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div className="grid grid-cols-4 gap-2">
-                      <SecondaryButton
-                        onClick={makeSceneClip}
-                        disabled={videoPhase === "clip" || videoPhase === "render"}
-                      >
-                        <VideoCameraIcon className="h-5 w-5" />{" "}
-                        {videoPhase === "clip"
-                          ? "만드는 중…"
-                          : clipPageIndex === videoPageIndex
-                            ? "움직임 완료 ✓"
-                            : "한 쪽 움직임"}
-                      </SecondaryButton>
+                    <div className="grid grid-cols-3 gap-2">
                       <SecondaryButton
                         onClick={() => makeStoryVideo(false)}
-                        disabled={videoPhase === "render" || videoPhase === "clip"}
+                        disabled={videoPhase === "render"}
                       >
                         <FilmIcon className="h-5 w-5" />{" "}
                         {videoPhase === "render" ? "만드는 중…" : "영상 미리보기"}
@@ -2116,7 +2056,7 @@ export function StoryKioskApp() {
                           if (storyVideoUrl) downloadBuiltVideo();
                           else void makeStoryVideo(true);
                         }}
-                        disabled={videoPhase === "render" || videoPhase === "clip"}
+                        disabled={videoPhase === "render"}
                       >
                         <ArrowDownTrayIcon className="h-5 w-5" />{" "}
                         {videoPhase === "render" ? "만드는 중…" : "영상 다운로드"}

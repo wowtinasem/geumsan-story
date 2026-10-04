@@ -6,6 +6,9 @@ export type ImageGenerationResult =
   | {
       error: string;
       message: string;
+      // 서버가 "잠시 뒤 다시"라고 할 때 기다릴 초와 지금 대기 인원
+      retryAfterSeconds?: number;
+      waiting?: number;
     };
 
 export function imageGenerationFailureMessage(error?: string) {
@@ -15,6 +18,10 @@ export function imageGenerationFailureMessage(error?: string) {
 
   if (error === "class_access_denied" || error === "usage_limit") {
     return "이 아이디로 사용할 수 있는 그림 생성 횟수를 모두 사용했어요. 선생님께 알려 주세요.";
+  }
+
+  if (error === "image_busy") {
+    return "친구들이 그림을 많이 만들고 있어요. 순서를 기다리는 중이에요.";
   }
 
   if (error === "rate_limited") {

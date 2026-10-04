@@ -132,7 +132,7 @@ export async function generateStory(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ selection, grade, ...access })
       },
-      20000
+      75000
     );
 
     // 사용 횟수 초과(특별 아이디의 횟수 제한 등)는 내장 엔진으로 대체하지 않고 위로 알려 안내한다.
@@ -179,15 +179,22 @@ export async function generateSceneImage(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ selection, scene, pageIndex, mode, ...access })
       },
-      45000
+      95000
     );
 
     if (!response.ok) {
-      const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
-      const error = data.error || "image_provider_failed";
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        retryAfterSeconds?: number;
+        waiting?: number;
+      };
+      const error = data.error || (response.status === 429 ? "image_busy" : "image_provider_failed");
       return {
         error,
-        message: data.message || imageGenerationFailureMessage(error)
+        message: data.message || imageGenerationFailureMessage(error),
+        retryAfterSeconds: data.retryAfterSeconds,
+        waiting: data.waiting
       };
     }
 
@@ -202,7 +209,7 @@ export async function generateSceneImage(
     };
   } catch {
     return {
-      error: "image_provider_failed",
+      error: "network_error",
       message: imageGenerationFailureMessage("image_provider_failed")
     };
   }

@@ -158,3 +158,43 @@ describe("student login", () => {
     });
   });
 });
+
+describe("signed session tokens", () => {
+  const student = { school: "금산초", grade: "4", number: "12", name: "홍길동" };
+
+  it("stay valid across a server restart with the same secret", () => {
+    const first = createAdminAccessStore({ credentials, secret: "same-secret" });
+    const { sessionToken } = first.studentLogin(student);
+    const restarted = createAdminAccessStore({ credentials, secret: "same-secret" });
+    const result = restarted.verify(sessionToken);
+    assert.equal(result.ok, true);
+    assert.equal(result.student.name, "홍길동");
+  });
+
+  it("are rejected with a different secret or a tampered payload", () => {
+    const store = createAdminAccessStore({ credentials, secret: "secret-a" });
+    const { sessionToken } = store.studentLogin(student);
+    assert.equal(createAdminAccessStore({ credentials, secret: "secret-b" }).verify(sessionToken).ok, false);
+
+    const [body, sig] = sessionToken.split(".");
+    const forgedBody = body.slice(0, -2) + (body.endsWith("AA") ? "BB" : "AA");
+    assert.equal(store.verify(`${forgedBody}.${sig}`).ok, false);
+  });
+
+  it("cannot turn a student token into an admin token", () => {
+    const store = createAdminAccessStore({ credentials, secret: "s" });
+    const { sessionToken } = store.studentLogin(student);
+    const asAdmin = sessionToken.replace("geumsan-student-", "geumsan-admin-");
+    assert.equal(store.verify(asAdmin).ok, false);
+  });
+
+  it("expire after 12 hours", () => {
+    let t = 1_000_000;
+    const store = createAdminAccessStore({ credentials, secret: "s", now: () => t });
+    const { sessionToken } = store.login({ adminId: "", password: "pw-for-test-only", ip: "1.1.1.1" });
+    t += 11 * 60 * 60 * 1000;
+    assert.equal(store.verify(sessionToken).ok, true);
+    t += 2 * 60 * 60 * 1000;
+    assert.equal(store.verify(sessionToken).ok, false);
+  });
+});
