@@ -32,6 +32,8 @@ export type StorySelection = {
     ageDesc?: string;
     hair?: string;
     features?: string[];
+    // "직접 쓰기"로 쓴 주인공 모습(옷차림 포함). 골라서 선택한 특징(features)과 함께 쓰지 않는다.
+    lookText?: string;
   };
   trait: { id: string; label: string };
   place: { id: string; name: string; sceneKey: string };

@@ -280,7 +280,7 @@ function buildPrompt(selection, grade, student) {
   return `아래 설정으로 동화 한 편을 써 줘.
 
 - 만들고 읽는 학생 : ${readerLabel}
-- 주인공: ${name}${genderPart} (성격: ${trait})
+- 주인공: ${name}${genderPart} (성격: ${trait})${selection.character?.lookText ? `\n- 주인공 모습: ${cleanPromptText(selection.character.lookText, 60)} (이야기 속에서 이 모습을 바꾸지 않는다)` : ""}
 - 배경: ${placeName}
 - 이야기 흐름: 발단 ${opening}, 전개 ${development}, 절정 ${climax}, 결말 ${ending}
 
@@ -513,6 +513,12 @@ function buildImagePrompt(selection, scene, pageIndex) {
     ? selection.character.features.filter(Boolean)
     : [];
   const featureText = features.length ? `, with ${features.join(", ")}` : "";
+  // 학생이 "직접 쓰기"로 쓴 모습(한국어). 옷차림이 있으면 기본 옷 대신 그대로 그린다.
+  const lookText = cleanPromptText(selection.character?.lookText, 60);
+  const withLook = (defaultOutfit) =>
+    lookText
+      ? `dressed and decorated exactly as the student described in Korean: ${lookText} — draw this clothing, costume, or accessories faithfully and clearly (for example a princess-style dress, a uniform, a superhero costume, or a spacesuit if written); if the description mentions no clothing, wear ${defaultOutfit.replace(/^wearing /, "")}`
+      : defaultOutfit;
   const placeKey = selection.place?.sceneKey || "village";
   const palette = {
     kong: "cream white rabbit-like child hero with very long rounded ears, blush pink cheeks, tiny paws, soft pastel pink scarf",
@@ -539,7 +545,7 @@ function buildImagePrompt(selection, scene, pageIndex) {
   let consistencyLine;
   if (gender === "robot") {
     const bodyColor = hair ? hair.replace(/\s*hair$/, "") : "silver";
-    characterBible = `a friendly rounded robot, ${ageDesc || "a child-sized small robot"}, with smooth ${bodyColor}-colored body panels, glowing round eyes, a gentle cheerful expression${featureText}`;
+    characterBible = `a friendly rounded robot, ${ageDesc || "a child-sized small robot"}, with smooth ${bodyColor}-colored body panels, glowing round eyes, a gentle cheerful expression${featureText}${lookText ? `, decorated exactly as the student described in Korean: ${lookText}` : ""}`;
     speciesNote = ", a friendly cute robot (not an animal, not a human child)";
     consistencyLine = "Do not redesign the protagonist between pages. Always draw the protagonist as the same robot; never turn it into an animal or a human.";
   } else if (gender === "boy" || gender === "girl") {
@@ -548,7 +554,7 @@ function buildImagePrompt(selection, scene, pageIndex) {
     const outfit = gender === "boy"
       ? "wearing a light blue hooded top, navy-blue jeans, and white sneakers"
       : "wearing a coral-pink long-sleeve shirt, light-blue jeans, and white sneakers";
-    characterBible = `a friendly Korean ${who} child, ${ageDesc || "around 9-11 years old"}, with ${hair || "black hair"}, bright round eyes, rosy cheeks, ${outfit}${featureText}`;
+    characterBible = `a friendly Korean ${who} child, ${ageDesc || "around 9-11 years old"}, with ${hair || "black hair"}, bright round eyes, rosy cheeks, ${withLook(outfit)}${featureText}`;
     speciesNote = ", a real human child (not an animal, not a robot, not a mascot)";
     consistencyLine = "Do not redesign the protagonist between pages. Always draw the protagonist as the same human child at the same age; never turn them into an animal, a robot, or a mascot.";
   } else if (gender === "man" || gender === "woman") {
@@ -556,7 +562,7 @@ function buildImagePrompt(selection, scene, pageIndex) {
     const outfit = gender === "man"
       ? "wearing a navy-blue casual jacket over a white shirt, beige trousers, and brown walking shoes"
       : "wearing a mustard-yellow cardigan over a white blouse, navy-blue trousers, and brown walking shoes";
-    characterBible = `a friendly Korean ${who}, ${ageDesc || "an adult in their thirties or forties"}, with ${hair || "black hair"}, warm kind eyes, a gentle smile, ${outfit}${featureText}`;
+    characterBible = `a friendly Korean ${who}, ${ageDesc || "an adult in their thirties or forties"}, with ${hair || "black hair"}, warm kind eyes, a gentle smile, ${withLook(outfit)}${featureText}`;
     speciesNote = ", a real human adult (not a child, not an animal, not a robot, not a mascot)";
     consistencyLine = "Do not redesign the protagonist between pages. Always draw the protagonist as the same adult person at the same age; never make them younger or older, and never turn them into a child, an animal, a robot, or a mascot.";
   } else {
@@ -569,7 +575,10 @@ function buildImagePrompt(selection, scene, pageIndex) {
   const sceneText = String(scene || "");
   const isHoliday = /명절|설날|추석|한가위|세배|정월 대보름|단오|한복/.test(sceneText);
   const isHistorical = /조선|고려|삼국|옛날 사람|역사 속|과거로|시간 ?여행|의병|장군|선비|임진왜란/.test(sceneText);
-  const eraLine = isHoliday
+  const protagonistOutfitNote = lookText
+    ? " Exception: the protagonist always wears exactly the outfit in the character bible (even a dress, costume, or hanbok the student wrote); this era rule is for everyone else."
+    : "";
+  const eraLine0 = isHoliday
     ? "Era: present-day Korea during a traditional holiday. Characters may wear colorful, festive, modern-style hanbok for the holiday; everything else (buildings, objects, other people) stays present-day."
     : [
         "Era: present-day Korea (2020s). The protagonist and all supporting characters — children, parents, grandparents, villagers, farmers, researchers — wear modern everyday clothing (t-shirts, hoodies, jackets, cardigans, work vests, jeans, trousers, sneakers).",
@@ -578,6 +587,7 @@ function buildImagePrompt(selection, scene, pageIndex) {
           : "Do not dress anyone in traditional hanbok, Joseon-era clothing, gat hats, or old-fashioned costumes.",
         "Grandparents wear modern clothes like cardigans, blouses, vests, and slacks, not hanbok."
       ].join(" ");
+  const eraLine = eraLine0 + protagonistOutfitNote;
 
   const pageNum = Number(pageIndex) + 1;
   const flowRoleEn =

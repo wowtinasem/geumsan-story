@@ -1013,15 +1013,17 @@ export function StoryKioskApp() {
   const hairDesc = useMemo(() => hairColors.find((c) => c.id === hairColorId)?.desc || "", [hairColorId]);
   const featureTextTrimmed = featureText.trim();
   const featureTextBlocked = featureTextTrimmed ? isBlockedCustomChoice(featureTextTrimmed) : false;
-  const featureDescs = useMemo(() => {
-    const picked = heroFeatures.filter((f) => featureIds.includes(f.id)).map((f) => f.desc);
-    // 금지어가 들어간 글은 그림에 넣지 않는다.
-    return featureTextTrimmed && !featureTextBlocked ? [...picked, featureTextTrimmed] : picked;
-  }, [featureIds, featureTextTrimmed, featureTextBlocked]);
-  const selection = useMemo(
-    () => ({ ...buildSelection(character, trait, place, events, heroName, gender, hairDesc, featureDescs, heroAgeId), artStyle }),
-    [character, trait, place, events, heroName, gender, hairDesc, featureDescs, heroAgeId, artStyle]
+  // 특징은 지금 고른 탭 하나만 쓴다: "골라서 선택"이면 고른 버튼만, "직접 쓰기"면 쓴 글만.
+  const featureDescs = useMemo(
+    () => (featureTab === "pick" ? heroFeatures.filter((f) => featureIds.includes(f.id)).map((f) => f.desc) : []),
+    [featureTab, featureIds]
   );
+  // 직접 쓴 모습(옷차림 포함)은 그림 서버가 기본 옷 대신 쓴다. 금지어가 들어간 글은 넣지 않는다.
+  const lookText = featureTab === "write" && featureTextTrimmed && !featureTextBlocked ? featureTextTrimmed : "";
+  const selection = useMemo(() => {
+    const base = buildSelection(character, trait, place, events, heroName, gender, hairDesc, featureDescs, heroAgeId);
+    return { ...base, character: { ...base.character, lookText }, artStyle };
+  }, [character, trait, place, events, heroName, gender, hairDesc, featureDescs, heroAgeId, lookText, artStyle]);
   const pdfMetadata = useMemo(
     () =>
       buildStoryPdfMetadata({
@@ -2224,8 +2226,8 @@ export function StoryKioskApp() {
                               ].join(" ")}
                             >
                               {tab.label}
-                              {tab.id === "pick" && featureIds.length ? ` ${featureIds.length}` : ""}
-                              {tab.id === "write" && featureTextTrimmed ? " ✓" : ""}
+                              {tab.id === "pick" && featureTab === "pick" && featureIds.length ? ` ${featureIds.length}` : ""}
+                              {tab.id === "write" && featureTab === "write" && featureTextTrimmed ? " ✓" : ""}
                             </button>
                           ))}
                         </div>
@@ -2252,6 +2254,7 @@ export function StoryKioskApp() {
                             </button>
                           );
                         })}
+                        <p className="col-span-3 text-xs font-bold text-[#D4F5FF]/70">고른 특징만 그림에 반영돼요. 직접 쓴 글은 쓰지 않아요.</p>
                       </div>
                       ) : (
                         <div className="grid gap-1">
@@ -2260,14 +2263,14 @@ export function StoryKioskApp() {
                             onChange={(event) => setFeatureText(sanitizeFeatureText(event.target.value))}
                             maxLength={maxFeatureTextLength}
                             rows={2}
-                            placeholder="예: 빨간 목도리를 두르고 인삼 모양 가방을 멘"
+                            placeholder="예: 분홍색 공주 드레스를 입고 반짝이는 왕관을 쓴"
                             className="w-full resize-none rounded-xl border border-[#73DFFF]/25 bg-[#151F41] px-4 py-3 text-base font-black text-white outline-none placeholder:text-[#D4F5FF]/45 focus:border-[#FFB15D]"
                           />
                           <p className="flex justify-between gap-2 text-xs font-bold text-[#D4F5FF]/70">
                             <span>
                               {featureTextBlocked
                                 ? "다른 표현으로 써 주세요. 이 글은 그림에 넣지 않아요."
-                                : "고른 특징과 함께 그림에 반영돼요."}
+                                : "직접 쓴 모습만 그림에 반영돼요. 옷(공주 드레스, 우주복, 운동복 등)도 그대로 그려요."}
                             </span>
                             <span>
                               {featureText.length}/{maxFeatureTextLength}

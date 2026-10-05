@@ -36,6 +36,7 @@ export function selectionHasBlockedWord(selection) {
   if (!selection) return false;
   const texts = [
     selection.character?.name,
+    selection.character?.lookText,
     ...(Array.isArray(selection.character?.features) ? selection.character.features : []),
     selection.trait?.label,
     selection.place?.name,
