@@ -287,7 +287,7 @@ function buildPrompt(selection, grade, student) {
 반드시 지킬 고정값(절대 바꾸지 않는다):
 - 주인공의 이름은 반드시 '${name}'(으)로 한다. 다른 이름으로 바꾸거나 새로 지어내지 않는다.
 - 배경(장소)은 반드시 '${placeName}'(으)로 한다. 아래 규칙의 예시에 다른 장소가 나와도 그것으로 바꾸지 않는다.
-${placeName === "칠백의총" ? "- 이 장소는 나라를 위해 목숨을 바친 분들을 기리는 곳이다. 추모하는 마음을 지키고, 소란스럽거나 가볍게 다루지 않는다. 파티·장난 같은 요소는 넣지 않는다.\n" : ""}${genderWord ? `- 주인공은 '${genderWord}'이다. 성별과 나이대를 바꾸지 않고, 그 나이에 어울리는 말투와 행동으로 쓴다.\n` : ""}${!isUpper ? "- 초등 3~4학년용이므로 각 쪽은 반드시 1~2개의 짧은 문장, 한 쪽당 40~70자 이내로 짧게 쓴다. 절대 길게 늘여 쓰지 않는다.\n" : ""}
+${placeName === "칠백의총" ? "- 이 장소는 나라를 위해 목숨을 바친 분들을 기리는 곳이다. 추모하는 마음을 지키고, 소란스럽거나 가볍게 다루지 않는다. 파티·장난 같은 요소는 넣지 않는다.\n" : ""}${placeName === "관촉사 은진미륵" ? "- 이 장소는 오래된 문화유산(커다란 돌부처가 있는 절)이다. 조용하고 예의 바르게 둘러보는 이야기로 쓰고, 종교 의식이나 믿음을 권하는 내용은 넣지 않는다. 돌부처에 오르거나 장난치지 않는다.\n" : ""}${placeName === "선샤인랜드" ? "- 이 장소는 옛 거리를 꾸며 놓은 오늘날의 촬영장이다. 주인공은 오늘날 사람으로 구경을 와서 옛 간판과 골목을 둘러본다.\n" : ""}${genderWord ? `- 주인공은 '${genderWord}'이다. 성별과 나이대를 바꾸지 않고, 그 나이에 어울리는 말투와 행동으로 쓴다.\n` : ""}${!isUpper ? "- 초등 3~4학년용이므로 각 쪽은 반드시 1~2개의 짧은 문장, 한 쪽당 40~70자 이내로 짧게 쓴다. 절대 길게 늘여 쓰지 않는다.\n" : ""}
 중요 소재 반영 규칙:
 - 2쪽 발단에는 반드시 '${opening}'의 핵심 소재가 보여야 한다.
 - 3쪽 전개에는 반드시 '${development}'의 핵심 행동이 이어져야 한다.
@@ -536,7 +536,12 @@ function buildImagePrompt(selection, scene, pageIndex) {
     cloud: "castle above the clouds, soft white cloud bridges, pearl towers, pastel sky",
     insam: "a sunlit Korean ginseng village in Geumsan, long rows of low ginseng plants under dark green shade screens on wooden frames, glossy five-part leaves with clusters of bright red berries, a few cozy traditional houses at the edge of the fields, forested mountain ridges behind, warm earthy soil",
     jeokbyeok: "a wide calm river curving beneath tall reddish-brown rock cliffs, pebbled riverbank, willow trees, mist over the water, soft golden late-afternoon light",
-    chilbaek: "a quiet Korean memorial ground with a wide stone-paved courtyard, a tall stone monument, a low tiled-roof shrine gate, rows of tall pine trees, still and solemn morning light"
+    chilbaek: "a quiet Korean memorial ground with a wide stone-paved courtyard, a tall stone monument, a low tiled-roof shrine gate, rows of tall pine trees, still and solemn morning light",
+    // 논산(임시)
+    tapjeong: "Tapjeong Lake in Nonsan: a wide calm lake surrounded by low green hills, a long white pedestrian suspension bridge with tall pylons crossing the water, wooden lakeside deck paths, soft bright daylight",
+    strawberry: "a strawberry farm in Nonsan: rows of long white vinyl greenhouses, raised beds of green strawberry plants with bright red strawberries, small baskets, friendly countryside under a clear sky",
+    sunshine: "Sunshine Land in Nonsan: an outdoor film-set street that recreates an old 1950s-60s Korean town with low wooden shops, hand-painted old-style signboards, a small tram track and dirt road; present-day visitors explore it in modern clothes",
+    gwanchok: "Gwanchoksa temple grounds in Nonsan: a calm hillside with stone steps and pine trees, and the very tall ancient standing stone Buddha statue (Eunjin Mireuk) with its tall flat stone crown, a small stone pagoda and lantern; peaceful heritage-site mood"
   };
 
   // 이름·유형(남성/여성/남자 어린이/여자 어린이/로봇)·나이대·머리색·특징으로 주인공 외형을 구성한다.
@@ -617,6 +622,7 @@ function buildImagePrompt(selection, scene, pageIndex) {
     `Setting bible: ${settingBible[placeKey] || (placeKey === "custom" ? `${cleanPromptText(place, 40)} — the place the student wrote, drawn as a believable present-day Korean location that clearly matches this name` : settingBible.village)}. Keep the same world design, palette, lighting mood, and material style across pages.`,
     eraLine,
     ...(placeKey === "chilbaek" ? ["Keep the mood respectful and quiet; no party, no balloons, no playful chaos."] : []),
+    ...(placeKey === "gwanchok" ? ["Keep the mood calm and respectful at this cultural heritage site; no religious rituals, no climbing on the statue, no playful chaos."] : []),
     "Use a consistent square storybook composition: protagonist clearly visible in the foreground or middle ground, clear foreground action, soft background depth, no extreme camera angle changes, no cropping that makes the character unrecognizable.",
     `This is page ${pageNum} of a 6-page continuous story; this page should ${flowRoleEn}. Illustrate the specific moment described below with its own distinct action, pose, expression, composition, and background detail.`,
     "Each page's illustration must look clearly different from the other pages and follow the story's progression; never repeat another page's scene, pose, or composition. Keep the same protagonist and the same outfit while only the action and surroundings change to match this page's moment.",

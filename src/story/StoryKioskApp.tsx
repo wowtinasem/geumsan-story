@@ -31,7 +31,7 @@ import {
   writeAdminSession
 } from "./adminSession";
 import { getKioskArtworkSource } from "./storyArtwork";
-import { characters, eventGroups, places, traits } from "./storyData";
+import { characters, eventGroups, isNonsanSchool, nonsanPlaces, places, traits } from "./storyData";
 import { isGeneratedSceneImage } from "./imageGeneration";
 import { checkProxyHealth, generateSceneImage, generateStory, localStory } from "./storyEngine";
 import { buildStoryVideo } from "./storyVideo";
@@ -579,6 +579,59 @@ function MiniPlaceArt({ place }: { place: PlaceChoice }) {
           ))}
         </>
       ) : null}
+      {scene === "tapjeong" ? (
+        <>
+          {/* 탑정호 출렁다리: 넓은 호수 + 호수를 가로지르는 다리와 주탑 */}
+          <span className="absolute inset-x-0 bottom-0 h-8 bg-[linear-gradient(180deg,#6CC7EC,#2177B5)]" />
+          <span className="absolute bottom-7 left-0 h-5 w-14 rounded-tr-[70%] bg-[linear-gradient(160deg,#6FB86F,#3C7F45)]" />
+          <span className="absolute bottom-7 right-0 h-6 w-16 rounded-tl-[70%] bg-[linear-gradient(160deg,#6FB86F,#3C7F45)]" />
+          <span className="absolute bottom-9 left-4 right-4 h-1 rounded-full bg-[#F4F1E8] shadow-[0_2px_3px_rgba(0,0,0,0.3)]" />
+          {[48, 104].map((left) => (
+            <span key={left} className="absolute bottom-9 h-8 w-1.5 rounded-t bg-[#E8E2D2]" style={{ left }} />
+          ))}
+          <span className="absolute bottom-[52px] left-[50px] h-[2px] w-14 rotate-[8deg] bg-[#E8E2D2]/80" />
+          <span className="absolute bottom-3 left-8 h-1 w-16 rounded-full bg-white/55" />
+        </>
+      ) : null}
+      {scene === "strawberry" ? (
+        <>
+          {/* 논산 딸기밭: 비닐하우스 + 초록 이랑 + 빨간 딸기 */}
+          <span className="absolute bottom-6 right-3 h-10 w-20 rounded-t-full border-2 border-white/70 bg-white/35" />
+          <span className="absolute inset-x-0 bottom-0 h-7 bg-[linear-gradient(180deg,#8E6440,#5E3F24)]" />
+          {[4, 40, 76, 112].map((left) => (
+            <span key={left} className="absolute bottom-5 h-3 w-9 rounded-t-full bg-[linear-gradient(145deg,#7FD27A,#3E8E45)]" style={{ left }} />
+          ))}
+          {[10, 22, 46, 58, 82, 94, 118, 130].map((left, i) => (
+            <span key={left} className={`absolute h-2.5 w-2 rounded-b-full bg-[#E5323F] shadow-[0_0_3px_rgba(229,50,63,0.7)] ${i % 2 ? "bottom-3" : "bottom-4"}`} style={{ left }} />
+          ))}
+        </>
+      ) : null}
+      {scene === "sunshine" ? (
+        <>
+          {/* 선샤인랜드: 옛 거리 촬영장 — 낮은 건물과 간판 */}
+          <span className="absolute inset-x-0 bottom-0 h-5 bg-[linear-gradient(180deg,#B9A27E,#8A7351)]" />
+          <span className="absolute bottom-5 left-2 h-12 w-12 bg-[linear-gradient(145deg,#C8A67A,#8F6B43)]" />
+          <span className="absolute bottom-[60px] left-1 h-2 w-14 bg-[#5B4532]" />
+          <span className="absolute bottom-12 left-4 h-2.5 w-8 rounded-sm bg-[#E9D9A8]" />
+          <span className="absolute bottom-5 left-16 h-9 w-14 bg-[linear-gradient(145deg,#D7C3A0,#9E845E)]" />
+          <span className="absolute bottom-[56px] left-[60px] h-2 w-16 bg-[#6E4E36]" />
+          <span className="absolute bottom-5 right-3 h-14 w-12 bg-[linear-gradient(145deg,#B48E62,#7E5E3A)]" />
+          <span className="absolute bottom-[72px] right-2 h-2 w-14 bg-[#4F3B2A]" />
+          <span className="absolute bottom-12 right-5 h-2.5 w-8 rounded-sm bg-[#F1C46A]" />
+        </>
+      ) : null}
+      {scene === "gwanchok" ? (
+        <>
+          {/* 관촉사 은진미륵: 언덕 위 커다란 돌부처(모자 모양 머리 장식) + 소나무 */}
+          <span className="absolute inset-x-0 bottom-0 h-7 rounded-t-[50%] bg-[linear-gradient(180deg,#8DB48A,#557B55)]" />
+          <span className="absolute bottom-5 left-[62px] h-12 w-8 rounded-t-[40%] bg-[linear-gradient(145deg,#E3E1D8,#9C9988)] shadow-[inset_-4px_-5px_7px_rgba(40,40,30,0.25)]" />
+          <span className="absolute bottom-[66px] left-[56px] h-1.5 w-11 rounded-sm bg-[#8E8B7B]" />
+          <span className="absolute bottom-[70px] left-[60px] h-1.5 w-9 rounded-sm bg-[#A3A08F]" />
+          {[16, 122].map((left) => (
+            <span key={left} className="absolute bottom-5 h-0 w-0 border-x-[13px] border-b-[30px] border-x-transparent border-b-[#2F6B45]" style={{ left }} />
+          ))}
+        </>
+      ) : null}
       <span className="absolute inset-0 rounded-xl bg-[radial-gradient(circle_at_25%_18%,rgba(255,255,255,0.42),transparent_18%),linear-gradient(180deg,rgba(255,255,255,0.2),transparent_42%,rgba(0,0,0,0.2))]" />
     </span>
   );
@@ -972,6 +1025,8 @@ export function StoryKioskApp() {
   const [pdfDone, setPdfDone] = useState<{ file: File; url: string } | null>(null);
   const [showFolderSteps, setShowFolderSteps] = useState(false);
   const [fileOwner, setFileOwner] = useState("");
+  // 로그인한 학생의 학교(논산 장소를 보여 줄지 정한다)
+  const [sessionSchool, setSessionSchool] = useState("");
   // 사건 화면에서 "이미 만들었어요"로 막혀 요청하는 경우(이 기기에 남은 동화가 없을 때)
   const [restartFromLimit, setRestartFromLimit] = useState(false);
   const [customTrait, setCustomTrait] = useState("");
@@ -1011,6 +1066,10 @@ export function StoryKioskApp() {
   // 6쪽 전부를 각각 그린다. 쪽마다 고유한 장면 텍스트로 생성하므로 같은 그림이 재사용되지 않는다.
   const IMAGE_PAGES = [0, 1, 2, 3, 4, 5] as const;
 
+  const visiblePlaces = useMemo(
+    () => (isAdmin || isNonsanSchool(sessionSchool) ? [...places, ...nonsanPlaces] : places),
+    [isAdmin, sessionSchool]
+  );
   const hairDesc = useMemo(() => hairColors.find((c) => c.id === hairColorId)?.desc || "", [hairColorId]);
   const featureTextTrimmed = featureText.trim();
   const featureTextBlocked = featureTextTrimmed ? isBlockedCustomChoice(featureTextTrimmed) : false;
@@ -1125,6 +1184,7 @@ export function StoryKioskApp() {
   async function openWorkFor(session: Pick<AdminSession, "role" | "student">) {
     const owner = workOwnerOf(session);
     setFileOwner(fileOwnerOf(session));
+    setSessionSchool(session.role === "student" ? session.student?.school || "" : "");
     resetWork();
     setRestartPhase("idle");
     setWorkOwner(owner);
@@ -1237,6 +1297,7 @@ export function StoryKioskApp() {
     resetWork();
     setWorkOwner("");
     setFileOwner("");
+    setSessionSchool("");
     setRestartPhase("idle");
     setStudentNumber("");
     setStudentName("");
@@ -2332,7 +2393,7 @@ export function StoryKioskApp() {
                       <h2 className="text-[clamp(24px,2.4vw,30px)] font-black leading-tight">이야기 배경을 골라요</h2>
                     </div>
                     <div className="grid min-h-0 auto-rows-max grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-4">
-                      {places.map((item) => (
+                      {visiblePlaces.map((item) => (
                         <button key={item.id} type="button" onClick={() => setPlace(item)} className={compactChoiceButtonClass(place.id === item.id)}>
                           <MiniPlaceArt place={item} />
                           <span className="text-sm font-black">{item.name}</span>

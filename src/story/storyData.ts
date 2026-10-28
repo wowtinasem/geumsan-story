@@ -31,6 +31,18 @@ export const places: PlaceChoice[] = [
   { id: "chilbaek", name: "칠백의총", sceneKey: "chilbaek", color: "#6B7A8F", imageSrc: "" }
 ];
 
+// 논산 장소(임시). 학교 이름에 "논산"이 들어간 학생과 관리자에게만 보인다(StoryKioskApp의 visiblePlaces).
+export const nonsanPlaces: PlaceChoice[] = [
+  { id: "tapjeong", name: "탑정호 출렁다리", sceneKey: "tapjeong", color: "#2F7FB8", imageSrc: "" },
+  { id: "strawberry", name: "논산 딸기밭", sceneKey: "strawberry", color: "#D94A5C", imageSrc: "" },
+  { id: "sunshine", name: "선샤인랜드", sceneKey: "sunshine", color: "#B98A4E", imageSrc: "" },
+  { id: "gwanchok", name: "관촉사 은진미륵", sceneKey: "gwanchok", color: "#8C8F7A", imageSrc: "" }
+];
+
+export function isNonsanSchool(school?: string) {
+  return /논산/.test(String(school || ""));
+}
+
 export const eventGroups = {
   opening: [
     { id: "lost-light", label: "작은 빛을 발견했어요" },
