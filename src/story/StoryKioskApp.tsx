@@ -2464,6 +2464,12 @@ export function StoryKioskApp() {
                                 </button>
                               );
                             })}
+                            {/* 직접 써서 추가한 사건은 보기 목록에 없으므로 고른 상태로 따로 보여 준다 */}
+                            {events[key as keyof StorySelection["events"]].id.startsWith("custom-") ? (
+                              <div className="col-span-2 min-h-8 rounded-xl border border-[#FFB15D] bg-[#2E2442] px-2.5 py-1 text-left text-[10px] font-black leading-snug text-white">
+                                ✏️ {events[key as keyof StorySelection["events"]].label}
+                              </div>
+                            ) : null}
                           </div>
                           <div className="mt-2 grid grid-cols-[1fr_auto] gap-1.5">
                             <input
